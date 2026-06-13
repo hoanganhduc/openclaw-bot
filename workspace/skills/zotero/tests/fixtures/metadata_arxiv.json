@@ -1,0 +1,27 @@
+[
+  {
+    "DOI": "10.48550/arXiv.2301.12345",
+    "abstractNote": "We study a model of chemotactic motility-induced phase separation.",
+    "archiveID": "arXiv:2301.12345",
+    "collections": [],
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Luke",
+        "lastName": "Corcoran"
+      },
+      {
+        "creatorType": "author",
+        "firstName": "Tal",
+        "lastName": "Agranov"
+      }
+    ],
+    "date": "2023-01-29",
+    "itemType": "preprint",
+    "relations": {},
+    "repository": "arXiv",
+    "tags": [],
+    "title": "Chemotactic motility-induced phase separation",
+    "url": "https://arxiv.org/abs/2301.12345"
+  }
+]

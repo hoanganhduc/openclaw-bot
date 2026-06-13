@@ -1,0 +1,454 @@
+{
+  "schema": "openclaw.rebuild-manifest.v1",
+  "updated": "2026-06-12",
+  "description": "Allowlist-first manifest for rebuilding OpenClaw core/settings/skills/runtime scripts without public research data or secret values.",
+  "openclaw": {
+    "observed_version": "2026.6.1",
+    "node_major_min": 22,
+    "sandbox_image": "ghcr.io/hoanganhduc/openclaw-sandbox:latest",
+    "sagemath_image": "ghcr.io/hoanganhduc/sagemath:10.8"
+  },
+  "classifications": [
+    {
+      "base": "openclaw",
+      "source": "openclaw.json",
+      "dest": "config/openclaw.json.template",
+      "class": "public-template",
+      "mode": "file",
+      "template": "openclaw-json-sanitize",
+      "reason": "Core OpenClaw configuration with paths/secrets/provider details templated; deepseek plugin/provider stripped per coding-system decision 10 (2026-06-12)."
+    },
+    {
+      "base": "openclaw",
+      "source": "secrets.json",
+      "dest": "config/secrets.json.template",
+      "class": "public-template",
+      "mode": "file",
+      "template": "secrets-keys",
+      "optional": true,
+      "reason": "Secret key names only; values must never be copied."
+    },
+    {
+      "base": "openclaw",
+      "source": "cron/jobs.json",
+      "dest": "config/cron-jobs.json.template",
+      "class": "public-template",
+      "mode": "file",
+      "template": "json-redact",
+      "optional": true,
+      "reason": "Scheduler job definitions with state, destinations, providers, and private ids redacted."
+    },
+    {
+      "base": "openclaw",
+      "source": "plugins/installs.json",
+      "dest": "config/plugins-installs.json.template",
+      "class": "public-template",
+      "mode": "file",
+      "template": "json-redact",
+      "optional": true,
+      "reason": "Plugin registry metadata with local paths templated."
+    },
+    {
+      "base": "home",
+      "source": ".config/systemd/user",
+      "dest": "systemd/user",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "openclaw-gateway.service",
+        "openclaw-gateway.service.d/**",
+        "send-queue-worker.service",
+        "rss_news_digest_bot.service",
+        "rss_news_digest_bot.timer",
+        "moltbook-relay.service",
+        "moltbook-relay.timer",
+        "xvfb-99.service"
+      ],
+      "exclude": [
+        "*.bak",
+        "*~"
+      ],
+      "reason": "User systemd units and drop-ins needed to start OpenClaw services."
+    },
+    {
+      "base": "openclaw",
+      "source": "agents",
+      "dest": "agents",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "*/agent/models.json",
+        "*/agent/auth-profiles.json"
+      ],
+      "exclude": [
+        "**/auth-state.json",
+        "**/sessions/**",
+        "**/qmd/**",
+        "**/.git/**"
+      ],
+      "reason": "Agent model/auth bootstrap shape without live auth state."
+    },
+    {
+      "base": "openclaw",
+      "source": "skills/getscipapers_requester",
+      "dest": "root-skills/getscipapers_requester",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "SKILL.md",
+        "*.py",
+        "*.sh",
+        "*.md"
+      ],
+      "exclude": [
+        "__pycache__/**",
+        "*.pyc",
+        ".git/**",
+        "config.json"
+      ],
+      "optional": true,
+      "reason": "Root OpenClaw skill shim, redacted and portable."
+    },
+    {
+      "base": "openclaw",
+      "source": "hooks/self-improvement",
+      "dest": "hooks/self-improvement",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "**/*"
+      ],
+      "exclude": [
+        "__pycache__/**",
+        "*.pyc",
+        ".git/**",
+        "*.log"
+      ],
+      "optional": true,
+      "reason": "Root self-improvement hook source without runtime state."
+    },
+    {
+      "base": "openclaw",
+      "source": "extensions/zulip",
+      "dest": "extensions/zulip",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "index.ts",
+        "openclaw.plugin.json",
+        "package.json",
+        "tsconfig.json"
+      ],
+      "exclude": [
+        "node_modules/**",
+        "package-lock.json",
+        "*.sync-conflict-*"
+      ],
+      "optional": true,
+      "reason": "Local Zulip extension source and manifest, excluding installed dependencies."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace",
+      "dest": "workspace",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "AGENTS.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+        "IDENTITY.md",
+        "HEARTBEAT.md",
+        "instruction.md",
+        "protocols/**",
+        "prose/**",
+        "config/research-compute.example.toml",
+        "research_compute/**",
+        "skills/**"
+      ],
+      "exclude": [
+        "skills/**/config.json",
+        "skills/**/.git/**",
+        "skills/**/.pytest_cache/**",
+        "skills/**/__pycache__/**",
+        "skills/**/*.pyc",
+        "skills/**/*.bak*",
+        "skills/**/quarantine/**",
+        "skills/rss-news-digest/.venv",
+        ".git/**",
+        ".local/**",
+        ".pylibs/**",
+        ".config/**",
+        ".research-compute/**",
+        "data/**",
+        "memory/**",
+        "reports/**",
+        "staging/**",
+        "tmp/**",
+        "_control/**",
+        "secrets/**",
+        "Downloads/**",
+        "archive/**",
+        "projects/**",
+        "__pycache__/**",
+        "*.pyc",
+        "*.pdf",
+        "*.epub",
+        "*.djvu",
+        "*.mobi",
+        "*.zip",
+        "*.tar.gz"
+      ],
+      "reason": "Main workspace public bootstrap, skills, and runtime code."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace/scripts",
+      "dest": "workspace/scripts",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "rollback_task.sh",
+        "data_archive.sh",
+        "check-rebuild-plan.sh",
+        "capture-session-git.sh",
+        "moltbook-relay.sh",
+        "ingest_library.py"
+      ],
+      "exclude": [
+        "kempe_*.py",
+        "__pycache__/**",
+        "*.pyc"
+      ],
+      "reason": "Selected helper scripts required for rollback, hooks, archive, relay, and ingestion."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace/openclaw-scripts",
+      "dest": "workspace/openclaw-scripts",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "openclaw-version-rollback.sh",
+        "openclaw_googlechat_unthread.sh"
+      ],
+      "exclude": [
+        "probe-models.py",
+        "probe-models.sh",
+        "install_*.sh",
+        "setup_*.sh",
+        "__pycache__/**",
+        "*.pyc"
+      ],
+      "reason": "Selected recovery scripts only; one-off installers and provider probes remain private/excluded."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace-host",
+      "dest": "aux-workspaces/workspace-host",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "AGENTS.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+        "IDENTITY.md",
+        "HEARTBEAT.md",
+        "BOOTSTRAP.md"
+      ],
+      "exclude": [
+        ".git/**",
+        ".openclaw/**",
+        "memory/**",
+        "sessions/**",
+        "qmd/**"
+      ],
+      "optional": true,
+      "reason": "Host auxiliary workspace bootstrap only."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace-moltbook",
+      "dest": "aux-workspaces/workspace-moltbook",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "AGENTS.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+        "IDENTITY.md",
+        "HEARTBEAT.md",
+        "reference/**",
+        "bin/approved-submolts.conf",
+        "bin/curl",
+        "bin/curl-real",
+        "bin/wget",
+        "bin/moltbook-api.sh",
+        "bin/entrypoint.sh",
+        "bin/moltbook-login.sh",
+        ".local/lib/python3.12/site-packages/usercustomize.py"
+      ],
+      "exclude": [
+        ".openclaw/**",
+        "memory/**",
+        "staging/**",
+        ".local/**/__pycache__/**",
+        "all_posts.txt"
+      ],
+      "optional": true,
+      "reason": "Moltbook bootstrap and enforcement wrappers, excluding private memory/staging."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace-review",
+      "dest": "aux-workspaces/workspace-review",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "AGENTS.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+        "IDENTITY.md",
+        "HEARTBEAT.md"
+      ],
+      "exclude": [
+        ".openclaw/**",
+        "data/**",
+        "memory/**",
+        "reports/**"
+      ],
+      "optional": true,
+      "reason": "Review workspace bootstrap only."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace-sanitizer",
+      "dest": "aux-workspaces/workspace-sanitizer",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "AGENTS.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+        "IDENTITY.md",
+        "HEARTBEAT.md",
+        "injection-patterns.md",
+        "scripts/update_patterns.py"
+      ],
+      "exclude": [
+        ".openclaw/**",
+        "memory/**",
+        "input/**",
+        "staging/**",
+        "verified/**"
+      ],
+      "optional": true,
+      "reason": "Sanitizer bootstrap and pattern updater, excluding private queued content."
+    },
+    {
+      "base": "openclaw",
+      "source": "workspace-moltbook-reviewer",
+      "dest": "aux-workspaces/workspace-moltbook-reviewer",
+      "class": "public-template",
+      "mode": "tree",
+      "template": "json-or-text-redact",
+      "include": [
+        "AGENTS.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+        "IDENTITY.md",
+        "HEARTBEAT.md"
+      ],
+      "exclude": [
+        ".openclaw/**",
+        "memory/**",
+        "sessions/**"
+      ],
+      "optional": true,
+      "reason": "Moltbook reviewer bootstrap only."
+    },
+    {
+      "base": "openclaw",
+      "source": "npm/projects",
+      "dest": "npm/projects",
+      "class": "public-template",
+      "mode": "tree",
+      "include": [
+        "*/package.json",
+        "*/package-lock.json"
+      ],
+      "exclude": [
+        "**/node_modules/**"
+      ],
+      "template": "json-redact",
+      "reason": "Pinned channel-plugin package manifests; node_modules regenerated by npm install at restore."
+    }
+  ],
+  "private_archive": [
+    "openclaw.json",
+    "secrets.json",
+    ".env",
+    ".stignore",
+    "credentials/**",
+    "identity/**",
+    "cron/**",
+    "workspace/.git/**",
+    "workspace/data/**",
+    "workspace/memory/**",
+    "workspace/reports/**",
+    "workspace/_control/**",
+    "agents/**/sessions/**",
+    "agents/**/qmd/**",
+    "memory/**",
+    "logs/**",
+    "browser/**",
+    "tasks/**",
+    "flows/**",
+    "media/**"
+  ],
+  "release_checks": {
+    "forbidden_text": [
+      "/home/ubuntu",
+      "BEGIN PRIVATE KEY",
+      "sk-",
+      "gsk_",
+      "pplx-",
+      "data/writing-style.md",
+      "Writing Style Profile"
+    ],
+    "forbidden_path_parts": [
+      ".git",
+      "__pycache__",
+      ".pytest_cache",
+      ".venv",
+      ".secrets.json",
+      "credentials",
+      "memory",
+      "sessions",
+      "qmd",
+      "logs",
+      "data"
+    ]
+  }
+}

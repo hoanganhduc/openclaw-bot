@@ -1,0 +1,43 @@
+# Research + synthesis with four role agents.
+
+input topic: "What should we discuss?"
+input rounds: "2"
+input output: "concise recommendation"
+input constraints: ""
+
+agent planner:
+  model: {{ MODEL_ID }}
+  prompt: "Plan a role-based discussion. Choose at most four useful roles, decide an interaction pattern, assign stronger reasoning to harder roles, and keep prompts compact. Return: Mode, Roles, Model Notes, Interaction Pattern, Round Plan, Token Risk Notes, Recovery Notes."
+
+agent advocate:
+  model: {{ MODEL_ID }}
+  prompt: "Provide the strongest constructive case for the topic. Be concise."
+
+agent skeptic:
+  model: {{ MODEL_ID }}
+  prompt: "Provide the strongest skeptical or adversarial case for the topic. Be concise."
+
+agent pragmatist:
+  model: {{ MODEL_ID }}
+  prompt: "Focus on operational tradeoffs, cost, reliability, and practicality. Be concise."
+
+agent judge:
+  model: {{ MODEL_ID }}
+  prompt: "Synthesize competing perspectives into a balanced final recommendation."
+
+parallel:
+  plan = session: planner
+    prompt: "Topic: {topic}. Rounds: {rounds}. Desired output: {output}. Constraints: {constraints}. Plan the discussion."
+  pro = session: advocate
+    prompt: "Topic: {topic}. Constraints: {constraints}. Give an opening statement. End with Best Point and Caveat."
+  con = session: skeptic
+    prompt: "Topic: {topic}. Constraints: {constraints}. Give an opening statement. End with Best Point and Caveat."
+  ops = session: pragmatist
+    prompt: "Topic: {topic}. Constraints: {constraints}. Give an opening statement. End with Best Point and Caveat."
+
+rebuttal = session: judge
+  prompt: "Using the planner output and the three openings, write one compact rebuttal round. State the strongest counterpoint each role should answer and one unresolved issue."
+context: { plan, pro, con, ops }
+
+session "Produce the final synthesis for the user. Include Topic, Roles, Model Notes, Interaction Pattern, Rounds Requested, Main Agreements, Main Disagreements, Best Arguments by Role, Bottom Line, and Recommended Next Step."
+context: { plan, pro, con, ops, rebuttal }

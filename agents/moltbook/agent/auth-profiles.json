@@ -1,0 +1,34 @@
+{
+  "profiles": {
+    "github-copilot:github": {
+      "provider": "github-copilot",
+      "token": "{{ REDACTED }}",
+      "type": "token"
+    },
+    "google:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "google",
+      "type": "api_key"
+    },
+    "openai:default": {
+      "access": "{{ REDACTED }}",
+      "accountId": "{{ REDACTED }}",
+      "expires": 1778493688000,
+      "managedBy": "codex-cli",
+      "provider": "openai",
+      "refresh": "{{ REDACTED }}",
+      "type": "oauth"
+    },
+    "openrouter:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "openrouter",
+      "type": "api_key"
+    },
+    "zai:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "zai",
+      "type": "api_key"
+    }
+  },
+  "version": 1
+}

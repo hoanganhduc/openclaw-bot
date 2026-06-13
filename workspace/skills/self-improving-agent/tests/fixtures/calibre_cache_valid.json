@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "authors": [],
+      "comments": null,
+      "description": "<b>Classic papers in computer science.</b>",
+      "formats": [
+        "pdf"
+      ],
+      "id": 1,
+      "identifiers": {
+        "isbn": "978-0-262-04614-7"
+      },
+      "series": null,
+      "tags": [
+        "algorithm",
+        "computation"
+      ],
+      "title": "Ideas That Created the Future",
+      "year": "2022"
+    },
+    {
+      "authors": [],
+      "comments": null,
+      "description": null,
+      "formats": [
+        "epub"
+      ],
+      "id": 2,
+      "identifiers": {},
+      "series": null,
+      "tags": [],
+      "title": "Another Test Book",
+      "year": "2021"
+    }
+  ],
+  "updated": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "authors": [],
+      "comments": null,
+      "description": null,
+      "formats": [
+        "pdf"
+      ],
+      "id": 1,
+      "identifiers": {},
+      "series": null,
+      "tags": [],
+      "title": "Valid Book",
+      "year": "2022"
+    },
+    "not_a_dict",
+    null,
+    42,
+    {
+      "authors": [],
+      "comments": null,
+      "description": null,
+      "formats": [
+        "epub"
+      ],
+      "id": 2,
+      "identifiers": {},
+      "series": null,
+      "tags": [],
+      "title": "Also Valid",
+      "year": "2021"
+    }
+  ],
+  "updated": "2026-01-01T00:00:00Z"
+}
