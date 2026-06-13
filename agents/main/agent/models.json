@@ -1,0 +1,213 @@
+{
+  "providers": {
+    "arcee": {
+      "api": "openai-completions",
+      "apiKey": "{{ REDACTED }}",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "models": [
+        {
+          "api": "openai-completions",
+          "contextWindow": 131072,
+          "cost": {
+            "cacheRead": 0.045,
+            "cacheWrite": 0.045,
+            "input": 0.045,
+            "output": 0.15
+          },
+          "id": "arcee/trinity-mini",
+          "input": [
+            "text"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "Trinity Mini 26B",
+          "reasoning": false
+        },
+        {
+          "api": "openai-completions",
+          "contextWindow": 131072,
+          "cost": {
+            "cacheRead": 0.25,
+            "cacheWrite": 0.25,
+            "input": 0.25,
+            "output": 1
+          },
+          "id": "arcee/trinity-large-preview",
+          "input": [
+            "text"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "Trinity Large Preview",
+          "reasoning": false
+        },
+        {
+          "api": "openai-completions",
+          "compat": {
+            "supportsReasoningEffort": false
+          },
+          "contextWindow": 262144,
+          "cost": {
+            "cacheRead": 0.25,
+            "cacheWrite": 0.25,
+            "input": 0.25,
+            "output": 0.9
+          },
+          "id": "arcee/trinity-large-thinking",
+          "input": [
+            "text"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "Trinity Large Thinking",
+          "reasoning": true
+        }
+      ]
+    },
+    "laozhang": {
+      "api": "openai-completions",
+      "apiKey": "{{ REDACTED }}",
+      "baseUrl": "https://api.laozhang.ai/v1",
+      "models": [
+        {
+          "contextWindow": 1000000,
+          "cost": {
+            "cacheRead": 0.5,
+            "cacheWrite": 6.25,
+            "input": 5,
+            "output": 25
+          },
+          "id": "claude-opus-4-6-max",
+          "input": [
+            "text",
+            "image"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "claude-opus-4-6-max (Custom Provider)",
+          "reasoning": true
+        },
+        {
+          "contextWindow": 1000000,
+          "cost": {
+            "cacheRead": 0.5,
+            "cacheWrite": 6.25,
+            "input": 3,
+            "output": 15
+          },
+          "id": "claude-sonnet-4-6-thinking",
+          "input": [
+            "text",
+            "image"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "claude-sonnet-4-6-thinking (Custom Provider)",
+          "reasoning": true
+        },
+        {
+          "contextWindow": 1000000,
+          "cost": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "input": 3.5,
+            "output": 10.5
+          },
+          "id": "gemini-3.1-pro-preview-thinking",
+          "input": [
+            "text",
+            "image"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "gemini-3.1-pro-preview-thinking (Custom Provider)",
+          "reasoning": true
+        },
+        {
+          "contextWindow": 128000,
+          "cost": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "input": 0.28,
+            "output": 0.42
+          },
+          "id": "DeepSeek-V3.2-Exp-thinking",
+          "input": [
+            "text"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "DeepSeek-V3.2-Exp-thinking (Custom Provider)",
+          "reasoning": true
+        }
+      ]
+    },
+    "ollama": {
+      "api": "ollama",
+      "apiKey": "{{ REDACTED }}",
+      "baseUrl": "http://127.0.0.1:11434",
+      "models": [
+        {
+          "contextWindow": 32768,
+          "cost": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "input": 0,
+            "output": 0
+          },
+          "id": "qwen2.5:7b",
+          "input": [
+            "text"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "qwen2.5:7b",
+          "reasoning": false
+        }
+      ]
+    },
+    "openai-codex": {
+      "api": "openai-codex-responses",
+      "baseUrl": "https://chatgpt.com/backend-api",
+      "models": []
+    },
+    "taphoaapi": {
+      "api": "anthropic-messages",
+      "apiKey": "{{ REDACTED }}",
+      "baseUrl": "https://taphoaapi.info.vn/v1",
+      "headers": {
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
+      "models": [
+        {
+          "contextWindow": 1000000,
+          "cost": {
+            "cacheRead": 0.5,
+            "cacheWrite": 6.25,
+            "input": 5,
+            "output": 25
+          },
+          "id": "claude-opus-4-6",
+          "input": [
+            "text",
+            "image"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "claude-opus-4-6 (Custom Provider)",
+          "reasoning": true
+        },
+        {
+          "contextWindow": 1000000,
+          "cost": {
+            "cacheRead": 0.5,
+            "cacheWrite": 6.25,
+            "input": 3,
+            "output": 15
+          },
+          "id": "claude-sonnet-4-6",
+          "input": [
+            "text",
+            "image"
+          ],
+          "maxTokens": "{{ REDACTED }}",
+          "name": "claude-sonnet-4-6 (Custom Provider)",
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}

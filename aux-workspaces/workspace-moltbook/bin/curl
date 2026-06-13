@@ -1,0 +1,20 @@
+#!/bin/bash
+# curl wrapper — blocks direct Moltbook access
+# Moltbook traffic must go through /workspace/bin/moltbook-api.sh
+# All other curl calls pass through to the real curl
+
+CONF_FILE="$(dirname "$0")/approved-submolts.conf"
+# In container, dirname resolves to /usr/bin — fall back to /workspace/bin
+[ -f "$CONF_FILE" ] || CONF_FILE="/workspace/bin/approved-submolts.conf"
+APPROVED_SUBMOLTS="$(tr '\n' ' ' < "$CONF_FILE" | xargs)"
+REAL_CURL="/workspace/bin/curl-real"
+
+for arg in "$@"; do
+    if echo "$arg" | grep -qE 'moltbook\.com'; then
+        echo "BLOCKED by curl wrapper: use /workspace/bin/moltbook-api.sh for Moltbook access. Approved submolts: $APPROVED_SUBMOLTS" >&2
+        exit 1
+    fi
+done
+
+# Pass through to real curl
+exec "$REAL_CURL" "$@"

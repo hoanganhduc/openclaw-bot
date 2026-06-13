@@ -1,0 +1,43 @@
+# Structured review with parallel reviewers.
+
+input artifact: "Describe the artifact or paste the text"
+input focus: "correctness, clarity, edge cases"
+input rounds: "2"
+input output: "review memo"
+
+agent planner:
+  model: {{ MODEL_ID }}
+  prompt: "Plan a review workflow. Choose at most four review roles, assign stronger reasoning where needed, and keep the review focused. Return: Roles, Model Notes, Review Strategy, Token Risk Notes, Recovery Notes."
+
+agent correctness_reviewer:
+  model: {{ MODEL_ID }}
+  prompt: "Review for correctness, soundness, logical consistency, and unsupported claims. Be concise and specific."
+
+agent edgecase_reviewer:
+  model: {{ MODEL_ID }}
+  prompt: "Review for edge cases, failure modes, hidden assumptions, and missing constraints. Be concise and specific."
+
+agent clarity_reviewer:
+  model: {{ MODEL_ID }}
+  prompt: "Review for clarity, organization, ambiguity, and wording issues. Be concise and specific."
+
+agent synthesizer:
+  model: {{ MODEL_ID }}
+  prompt: "Merge the reviewers into one actionable review memo with prioritization."
+
+parallel:
+  plan = session: planner
+    prompt: "Artifact: {artifact}. Focus: {focus}. Rounds: {rounds}. Desired output: {output}. Plan the review."
+  corr = session: correctness_reviewer
+    prompt: "Artifact: {artifact}. Focus: {focus}. Give your opening review. End with Highest-Risk Issue and Confidence."
+  edge = session: edgecase_reviewer
+    prompt: "Artifact: {artifact}. Focus: {focus}. Give your opening review. End with Highest-Risk Issue and Confidence."
+  clear = session: clarity_reviewer
+    prompt: "Artifact: {artifact}. Focus: {focus}. Give your opening review. End with Highest-Risk Issue and Confidence."
+
+triage = session: synthesizer
+  prompt: "Using the planner output and the three reviews, produce a concise triage round. Group issues into critical, important, and optional. Identify disagreements between reviewers."
+context: { plan, corr, edge, clear }
+
+session "Produce the final review memo. Include Scope, Review Roles, Main Findings, Critical Issues, Important Issues, Optional Improvements, Reviewer Disagreements, Bottom Line, and Suggested Next Step."
+context: { plan, corr, edge, clear, triage }

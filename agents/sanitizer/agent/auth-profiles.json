@@ -1,0 +1,53 @@
+{
+  "lastGood": {
+    "github-copilot": "github-copilot:github",
+    "openai": "openai:default",
+    "openrouter": "openrouter:default"
+  },
+  "profiles": {
+    "github-copilot:github": {
+      "provider": "github-copilot",
+      "token": "{{ REDACTED }}",
+      "type": "token"
+    },
+    "google:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "google",
+      "type": "api_key"
+    },
+    "openai:default": {
+      "access": "{{ REDACTED }}",
+      "accountId": "{{ REDACTED }}",
+      "expires": 1773974324159,
+      "provider": "openai",
+      "refresh": "{{ REDACTED }}",
+      "type": "oauth"
+    },
+    "openrouter:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "openrouter",
+      "type": "api_key"
+    },
+    "zai:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "zai",
+      "type": "api_key"
+    }
+  },
+  "usageStats": {
+    "github-copilot:github": {
+      "errorCount": 0,
+      "lastFailureAt": 1773310253900,
+      "lastUsed": 1773800103266
+    },
+    "openai:default": {
+      "errorCount": 0,
+      "lastUsed": 1773455359011
+    },
+    "openrouter:default": {
+      "errorCount": 0,
+      "lastUsed": 1773384201005
+    }
+  },
+  "version": 1
+}

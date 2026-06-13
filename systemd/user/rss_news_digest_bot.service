@@ -1,0 +1,12 @@
+[Unit]
+Description=RSS Research Radar Bot (oneshot+summary)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart={{ OPENCLAW_WORKSPACE }}/skills/rss-news-digest/run_and_summarize.sh
+Environment=PYTHONUNBUFFERED=1
+Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+
+[Install]
+WantedBy=default.target

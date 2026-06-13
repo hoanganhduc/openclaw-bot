@@ -1,0 +1,88 @@
+{
+  "lastGood": {
+    "github-copilot": "github-copilot:github",
+    "laozhang": "laozhang:default",
+    "openai": "openai:default",
+    "openrouter": "openrouter:default",
+    "taphoaapi": "taphoaapi:default",
+    "zai": "zai:default"
+  },
+  "profiles": {
+    "github-copilot:github": {
+      "provider": "github-copilot",
+      "token": "{{ REDACTED }}",
+      "type": "token"
+    },
+    "google:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "google",
+      "type": "api_key"
+    },
+    "laozhang:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "laozhang",
+      "type": "api_key"
+    },
+    "openai:default": {
+      "access": "{{ REDACTED }}",
+      "accountId": "{{ REDACTED }}",
+      "expires": 1776764946000,
+      "provider": "openai",
+      "refresh": "{{ REDACTED }}",
+      "type": "oauth"
+    },
+    "openrouter:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "openrouter",
+      "type": "api_key"
+    },
+    "taphoaapi:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "taphoaapi",
+      "type": "api_key"
+    },
+    "zai:default": {
+      "key": "{{ REDACTED }}",
+      "provider": "zai",
+      "type": "api_key"
+    }
+  },
+  "usageStats": {
+    "github-copilot:github": {
+      "errorCount": 0,
+      "lastFailureAt": 1773310253900,
+      "lastUsed": 1773533976725
+    },
+    "laozhang:default": {
+      "cooldownUntil": 1776503372624,
+      "errorCount": 1,
+      "failureCounts": {
+        "rate_limit": 1
+      },
+      "lastFailureAt": 1776503312624
+    },
+    "openai:default": {
+      "errorCount": 0,
+      "lastUsed": 1773455359011
+    },
+    "openrouter:default": {
+      "errorCount": 0,
+      "lastUsed": 1773384201005
+    },
+    "taphoaapi:default": {
+      "cooldownUntil": 1776503343911,
+      "errorCount": 1,
+      "failureCounts": {
+        "auth": "{{ REDACTED }}"
+      },
+      "lastFailureAt": 1776503283911,
+      "lastUsed": 1776081430391
+    },
+    "zai:default": {
+      "errorCount": 0,
+      "lastFailureAt": 1774505358804,
+      "lastUsed": 1774506614257
+    }
+  },
+  "version": 1
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenClaw Job Queue Worker (file sending + SageMath)
+After=openclaw-gateway.service
+
+[Service]
+Type=simple
+ExecStart={{ OPENCLAW_WORKSPACE }}/skills/zotero/job_queue_worker.sh
+Environment=PATH={{ USER_HOME }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

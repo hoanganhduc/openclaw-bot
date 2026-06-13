@@ -1,0 +1,20 @@
+[
+  {
+    "authors": [],
+    "comments": null,
+    "description": "A book in bare list format.",
+    "formats": [
+      "pdf"
+    ],
+    "id": 3,
+    "identifiers": {
+      "doi": "10.1234/bare"
+    },
+    "series": null,
+    "tags": [
+      "graph"
+    ],
+    "title": "Bare List Book",
+    "year": "2020"
+  }
+]

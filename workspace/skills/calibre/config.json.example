@@ -1,0 +1,12 @@
+{
+  "gdrive_folder_id": "YOUR_CALIBRE_LIBRARY_FOLDER_ID",
+  "gdrive_credentials_file": "",
+  "staging_dir": "{{ PRIVATE_DATA_DIR }}/calibre/staging",
+  "cache_path": "{{ PRIVATE_DATA_DIR }}/calibre/cache/library.json",
+  "db_local_path": "{{ PRIVATE_DATA_DIR }}/calibre/cache/metadata.db",
+  "cache_max_age_hours": 24,
+  "default_send_channel": "telegram",
+  "isbn_lookup_url": "https://openlibrary.org/api/books",
+  "preferred_format": "epub",
+  "max_search_results": 25
+}

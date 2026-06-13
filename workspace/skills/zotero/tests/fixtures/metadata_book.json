@@ -1,0 +1,22 @@
+[
+  {
+    "ISBN": "978-0-13-468599-1",
+    "collections": [],
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Joshua",
+        "lastName": "Bloch"
+      }
+    ],
+    "date": "2018",
+    "edition": "3rd",
+    "itemType": "book",
+    "language": "en",
+    "numPages": "412",
+    "publisher": "Addison-Wesley Professional",
+    "relations": {},
+    "tags": [],
+    "title": "Effective Java"
+  }
+]

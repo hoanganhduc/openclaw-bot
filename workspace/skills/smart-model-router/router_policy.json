@@ -1,0 +1,38 @@
+{
+  "heavy_reasoning_keywords": [
+    "proof",
+    "theorem",
+    "lemma",
+    "corollary",
+    "conjecture",
+    "derive",
+    "formalize",
+    "formalise",
+    "math",
+    "mathematics",
+    "combinatorics",
+    "graph theory",
+    "reconfiguration",
+    "token sliding",
+    "token jumping",
+    "reduction",
+    "np-hard",
+    "pspace",
+    "complexity",
+    "algorithm design",
+    "dynamic programming",
+    "counterexample",
+    "correctness",
+    "verification",
+    "symbolic"
+  ],
+  "heavy_timeout_seconds": 1800,
+  "ordinary_timeout_seconds": 600,
+  "premium_preferences": [
+    "{{ MODEL_ID }}",
+    "{{ MODEL_ID }}",
+    "{{ MODEL_ID }}",
+    "{{ MODEL_ID }}",
+    "{{ MODEL_ID }}"
+  ]
+}

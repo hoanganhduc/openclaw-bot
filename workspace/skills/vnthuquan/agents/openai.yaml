@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vietnam Thu Quan"
+  short_description: "Vietnam Thu Quan ebook workflows"
+  default_prompt: "Use $vnthuquan to search Vietnam Thu Quan, inspect metadata, dry-run downloads, validate files, and hand off EPUB/PDF downloads to Calibre."

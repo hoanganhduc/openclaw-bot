@@ -1,0 +1,17 @@
+#!/bin/bash
+# wget wrapper — blocks direct Moltbook access
+# Moltbook traffic must go through /workspace/bin/moltbook-api.sh
+CONF_FILE="$(dirname "$0")/approved-submolts.conf"
+[ -f "$CONF_FILE" ] || CONF_FILE="/workspace/bin/approved-submolts.conf"
+APPROVED_SUBMOLTS="$(tr '\n' ' ' < "$CONF_FILE" | xargs)"
+REAL_WGET="/usr/bin/wget.real"
+# Fallback if wget.real doesn't exist (no bind mount for wget)
+[ -x "$REAL_WGET" ] || REAL_WGET="/usr/bin/wget"
+
+for arg in "$@"; do
+    if echo "$arg" | grep -qE 'moltbook\.com'; then
+        echo "BLOCKED by wget wrapper: use /workspace/bin/moltbook-api.sh for Moltbook access. Approved submolts: $APPROVED_SUBMOLTS" >&2
+        exit 1
+    fi
+done
+exec "$REAL_WGET" "$@"

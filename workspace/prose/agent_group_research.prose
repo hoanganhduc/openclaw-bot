@@ -1,0 +1,39 @@
+# Multi-agent research with planning, scouting, critique, and synthesis.
+
+# For explicit search -> analyze -> write research with stable source ledgers, prefer deep-research-workflow.
+
+input question: "What should we research?"
+input rounds: "2"
+input output: "research brief"
+input constraints: ""
+
+agent planner:
+  model: {{ MODEL_ID }}
+  prompt: "Plan a research workflow. Choose at most four roles, assign stronger reasoning to harder roles and larger-context models to evidence-heavy roles. Return: Mode, Roles, Model Notes, Interaction Pattern, Research Plan, Token Risk Notes, Recovery Notes."
+
+agent scout:
+  model: {{ MODEL_ID }}
+  prompt: "Generate likely directions, hypotheses, or evidence categories. Be concise."
+
+agent critic:
+  model: {{ MODEL_ID }}
+  prompt: "Identify weaknesses, alternative explanations, confounders, and missing evidence. Be concise."
+
+agent synthesizer:
+  model: {{ MODEL_ID }}
+  prompt: "Combine perspectives into a compact research brief with uncertainties and next steps."
+
+parallel:
+  plan = session: planner
+    prompt: "Question: {question}. Rounds: {rounds}. Desired output: {output}. Constraints: {constraints}. Plan the research."
+  scout_out = session: scout
+    prompt: "Question: {question}. Constraints: {constraints}. Provide opening research directions. End with Most Promising Lead and Biggest Unknown."
+  critic_out = session: critic
+    prompt: "Question: {question}. Constraints: {constraints}. Provide opening critique. End with Main Risk and What Would Change Your Mind."
+
+challenge = session: synthesizer
+  prompt: "Using the planner, scout, and critic outputs, write one compact challenge round: what the scout must defend, what the critic must refine, and what evidence is missing."
+context: { plan, scout_out, critic_out }
+
+session "Produce the final research brief. Include Question, Roles, Model Notes, Main Hypotheses or Directions, Main Objections, Highest-Value Next Checks, Bottom Line, and Recommended Next Step."
+context: { plan, scout_out, critic_out, challenge }
