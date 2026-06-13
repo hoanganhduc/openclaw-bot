@@ -6,7 +6,8 @@
     "observed_version": "2026.6.1",
     "node_major_min": 22,
     "sandbox_image": "ghcr.io/hoanganhduc/openclaw-sandbox:latest",
-    "sagemath_image": "ghcr.io/hoanganhduc/sagemath:10.8"
+    "sagemath_image": "sagemath/sagemath:10.8",
+    "sagemath_image_arm64": "ghcr.io/hoanganhduc/sagemath:10.8"
   },
   "classifications": [
     {

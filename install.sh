@@ -191,7 +191,7 @@ fi
 
 if [[ "$SKIP_DOCKER" -eq 0 ]]; then
   echo "Docker setup is intentionally conservative in this MVP."
-  echo "Expected images: ghcr.io/hoanganhduc/openclaw-sandbox:latest and ghcr.io/hoanganhduc/sagemath:10.8"
+  echo "Expected images: ghcr.io/hoanganhduc/openclaw-sandbox:latest and sagemath/sagemath:10.8 (arm64: ghcr.io/hoanganhduc/sagemath:10.8)"
 fi
 
 if [[ "$DRY_RUN" -eq 0 && -x "$WORKSPACE/scripts/rollback_task.sh" ]]; then
