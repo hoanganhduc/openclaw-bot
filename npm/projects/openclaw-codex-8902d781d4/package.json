@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@openclaw/codex": "2026.6.1"
+    "@openclaw/codex": "^2026.6.6"
   },
   "openclaw": {
     "managedOverrides": [

@@ -3,7 +3,7 @@
   "updated": "2026-06-12",
   "description": "Allowlist-first manifest for rebuilding OpenClaw core/settings/skills/runtime scripts without public research data or secret values.",
   "openclaw": {
-    "observed_version": "2026.6.1",
+    "observed_version": "2026.6.6",
     "node_major_min": 22,
     "sandbox_image": "ghcr.io/hoanganhduc/openclaw-sandbox:latest",
     "sagemath_image": "sagemath/sagemath:10.8",
@@ -17,7 +17,7 @@
       "class": "public-template",
       "mode": "file",
       "template": "openclaw-json-sanitize",
-      "reason": "Core OpenClaw configuration with paths/secrets/provider details templated; deepseek plugin/provider stripped per coding-system decision 10 (2026-06-12)."
+      "reason": "Core OpenClaw configuration with paths/secrets/provider details templated; obsolete openclaw-src plugin paths stripped while bundled providers/plugins are preserved."
     },
     {
       "base": "openclaw",
@@ -93,16 +93,16 @@
     },
     {
       "base": "openclaw",
-      "source": "skills/getscipapers_requester",
-      "dest": "root-skills/getscipapers_requester",
+      "source": "skills",
+      "dest": "root-skills",
       "class": "public-template",
       "mode": "tree",
       "template": "json-or-text-redact",
       "include": [
-        "SKILL.md",
-        "*.py",
-        "*.sh",
-        "*.md"
+        "*/SKILL.md",
+        "*/*.py",
+        "*/*.sh",
+        "*/*.md"
       ],
       "exclude": [
         "__pycache__/**",
@@ -111,7 +111,7 @@
         "config.json"
       ],
       "optional": true,
-      "reason": "Root OpenClaw skill shim, redacted and portable."
+      "reason": "Root OpenClaw skill shims, redacted and portable."
     },
     {
       "base": "openclaw",
@@ -184,6 +184,8 @@
         "skills/**/__pycache__/**",
         "skills/**/*.pyc",
         "skills/**/*.bak*",
+        "skills/**/*.backup.*",
+        "skills/**/*pre-cleanup*",
         "skills/**/quarantine/**",
         "skills/rss-news-digest/.venv",
         ".git/**",
@@ -432,6 +434,7 @@
     "forbidden_text": [
       "/home/ubuntu",
       "BEGIN PRIVATE KEY",
+      "END PRIVATE KEY",
       "sk-",
       "gsk_",
       "pplx-",

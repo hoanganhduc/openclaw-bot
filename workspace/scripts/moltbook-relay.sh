@@ -2,8 +2,9 @@
 # Relay: move moltbook staging files → sanitizer input queue
 set -euo pipefail
 
-STAGING_DIR="${HOME}/.openclaw/workspace-moltbook/staging"
-INPUT_DIR="${HOME}/.openclaw/workspace-sanitizer/input"
+OPENCLAW_HOME="${OPENCLAW_HOME:-{{ OPENCLAW_HOME }}}"
+STAGING_DIR="$OPENCLAW_HOME/workspace-moltbook/staging"
+INPUT_DIR="$OPENCLAW_HOME/workspace-sanitizer/input"
 
 mkdir -p "$INPUT_DIR"
 

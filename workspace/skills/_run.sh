@@ -5,8 +5,9 @@
 #   e.g. _run.sh skills/sagemath/run_sage.sh "G = graphs.PetersenGraph(); print(G.chromatic_number())"
 
 export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-{{ OPENCLAW_WORKSPACE }}}"
+export OPENCLAW_HOME="${OPENCLAW_HOME:-{{ OPENCLAW_HOME }}}"
 export PYTHONPATH="$OPENCLAW_WORKSPACE/.local:${HOME}/.local/lib/python3.12/site-packages:$PYTHONPATH"
-export OPENCLAW_SECRETS_FILE="${OPENCLAW_SECRETS_FILE:-$HOME/.openclaw/secrets.json}"
+export OPENCLAW_SECRETS_FILE="${OPENCLAW_SECRETS_FILE:-$OPENCLAW_HOME/secrets.json}"
 export PATH="$HOME/.local/bin:$OPENCLAW_WORKSPACE/.local/bin:$OPENCLAW_WORKSPACE/.local/venv_getscipapers/bin:$HOME/.venvs/bin:$PATH"
 
 cd "$OPENCLAW_WORKSPACE" || exit 1

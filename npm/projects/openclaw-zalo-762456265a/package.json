@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@openclaw/zalo": "2026.6.1"
+    "@openclaw/zalo": "^2026.6.6"
   },
   "openclaw": {
     "managedOverrides": [

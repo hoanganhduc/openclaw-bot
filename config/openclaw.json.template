@@ -470,7 +470,7 @@
   },
   "meta": {
     "lastTouchedAt": "2026-06-05T10:29:33.861Z",
-    "lastTouchedVersion": "2026.6.1"
+    "lastTouchedVersion": "2026.6.6"
   },
   "models": {
     "mode": "merge",
@@ -949,6 +949,6 @@
     "lastRunAt": "2026-06-05T10:13:13.566Z",
     "lastRunCommand": "doctor",
     "lastRunMode": "local",
-    "lastRunVersion": "2026.6.1"
+    "lastRunVersion": "2026.6.6"
   }
 }

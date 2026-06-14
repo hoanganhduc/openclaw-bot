@@ -45,7 +45,42 @@ if ! command -v gpg >/dev/null 2>&1; then
 fi
 
 mkdir -p "$PREFIX"
-gpg --decrypt "$ARCHIVE" | tar -C "$PREFIX" -xzf -
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/openclaw-restore.XXXXXX")"
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
+
+TAR_PATH="$TMP_DIR/private.tar.gz"
+gpg --decrypt "$ARCHIVE" > "$TAR_PATH"
+python3 - "$TAR_PATH" <<'PY'
+import posixpath
+import sys
+import tarfile
+from pathlib import PurePosixPath
+
+archive = sys.argv[1]
+with tarfile.open(archive, "r:gz") as tar:
+    for member in tar.getmembers():
+        name = member.name
+        path = PurePosixPath(name)
+        if not name or path.is_absolute() or ".." in path.parts:
+            raise SystemExit(f"unsafe archive path: {name!r}")
+        if member.islnk():
+            raise SystemExit(f"hardlinks are not allowed in restore archive: {name!r}")
+        if member.issym():
+            target = PurePosixPath(member.linkname)
+            if not member.linkname or target.is_absolute() or ".." in target.parts:
+                raise SystemExit(f"unsafe symlink target in restore archive: {name!r} -> {member.linkname!r}")
+            resolved = PurePosixPath(posixpath.normpath(str(path.parent / target)))
+            if ".." in resolved.parts or resolved.is_absolute():
+                raise SystemExit(f"symlink escapes restore root: {name!r} -> {member.linkname!r}")
+            continue
+        if not (member.isfile() or member.isdir()):
+            raise SystemExit(f"unsupported archive member type: {name!r}")
+PY
+STAGE="$TMP_DIR/stage"
+mkdir -p "$STAGE"
+tar -C "$STAGE" -xzf "$TAR_PATH"
+cp -a "$STAGE"/. "$PREFIX"/
 echo "restore overlay complete"
 
 if [[ "$SKIP_SERVICES" -eq 0 ]] && command -v systemctl >/dev/null 2>&1; then
