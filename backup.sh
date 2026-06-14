@@ -46,9 +46,11 @@ INCLUDE=(
   "workspace/.git"
   "workspace/data"
   "workspace/memory"
+  "workspace/reports"
   "workspace/scripts"
   "workspace/openclaw-scripts"
   "workspace/_control"
+  "media"
   "agents"
   "memory"
   "logs"
@@ -88,4 +90,3 @@ if [[ "$VERIFY" -eq 1 ]]; then
   gpg --decrypt "$ARCHIVE" 2>/dev/null | tar -tzf - >/dev/null
   echo "verify: ok"
 fi
-

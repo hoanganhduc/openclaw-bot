@@ -6,7 +6,7 @@ usage() {
 Usage: ./test-roundtrip.sh [--keep] [--quick]
 
 Runs a conservative local roundtrip in /tmp:
-  sync dry-run -> temp install -> backup dry-run -> deploy dry-run.
+  sync dry-run -> temp install -> backup temp prefix dry-run -> deploy dry-run.
 EOF
 }
 
@@ -38,7 +38,7 @@ trap cleanup EXIT
 echo "roundtrip dir: $RUN_DIR"
 "$SCRIPT_DIR/sync.sh" --dry-run --staging "$STAGING"
 "$STAGING/install.sh" --prefix "$PREFIX" --skip-openclaw-install --skip-docker --skip-services
-"$SCRIPT_DIR/backup.sh" --prefix "${OPENCLAW_HOME:-$HOME/.openclaw}" --dry-run >/dev/null
+"$SCRIPT_DIR/backup.sh" --prefix "$PREFIX" --dry-run >/dev/null
 "$STAGING/deploy.sh" --prefix "$PREFIX" --dry-run
 
 if [[ "$QUICK" -eq 0 ]]; then
@@ -46,4 +46,3 @@ if [[ "$QUICK" -eq 0 ]]; then
 fi
 
 echo "roundtrip: ok"
-

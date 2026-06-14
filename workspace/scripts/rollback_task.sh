@@ -7,7 +7,7 @@
 #   rollback_task.sh status                      -- show active task info
 #   rollback_task.sh checkpoint                  -- mid-task git commit
 
-WORKSPACE="${OPENCLAW_WORKSPACE:-/workspace}"
+WORKSPACE="${OPENCLAW_WORKSPACE:-{{ OPENCLAW_WORKSPACE }}}"
 # Also support host-side path
 if [ ! -d "$WORKSPACE" ]; then
   WORKSPACE="${OPENCLAW_HOME:-$HOME/.openclaw}/workspace"
@@ -37,14 +37,19 @@ case "$1" in
     fi
 
     mkdir -p "$(dirname "$CONTROL_FILE")"
-    cat > "$CONTROL_FILE" << EOF
-{
-  "task": "$TASK_NAME",
-  "commit": "$COMMIT_SHA",
-  "started": "$TIMESTAMP",
-  "workspace": "$WORKSPACE"
-}
-EOF
+    python3 - "$CONTROL_FILE" "$TASK_NAME" "$COMMIT_SHA" "$TIMESTAMP" "$WORKSPACE" <<'PY'
+import json
+import sys
+
+path, task, commit, started, workspace = sys.argv[1:6]
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(
+        {"task": task, "commit": commit, "started": started, "workspace": workspace},
+        f,
+        indent=2,
+    )
+    f.write("\n")
+PY
     echo "✓ Task snapshot created"
     echo "  Task   : $TASK_NAME"
     echo "  Commit : $COMMIT_SHA"
@@ -62,8 +67,18 @@ EOF
       exit 1
     fi
 
-    TASK=$(python3 -c "import json; d=json.load(open('$CONTROL_FILE')); print(d.get('task','unknown'))" 2>/dev/null || echo "unknown")
-    COMMIT=$(python3 -c "import json; d=json.load(open('$CONTROL_FILE')); print(d.get('commit',''))" 2>/dev/null || echo "")
+    TASK=$(python3 - "$CONTROL_FILE" <<'PY' 2>/dev/null || echo "unknown"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    print(json.load(f).get("task", "unknown"))
+PY
+)
+    COMMIT=$(python3 - "$CONTROL_FILE" <<'PY' 2>/dev/null || echo ""
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    print(json.load(f).get("commit", ""))
+PY
+)
 
     cd "$WORKSPACE" || { echo "ERROR: Cannot cd to $WORKSPACE"; exit 1; }
 
@@ -78,6 +93,7 @@ EOF
     echo "Changes that will be discarded:"
     git diff --stat HEAD
     git status --short
+    git clean -ndx
     echo ""
 
     if ! $FORCE; then
@@ -90,7 +106,7 @@ EOF
 
     # Hard reset to pre-task commit
     git reset --hard "$COMMIT"
-    git clean -fd
+    git clean -fdx
 
     # Verify rollback succeeded
     ACTUAL_SHA=$(git rev-parse HEAD)
@@ -126,7 +142,12 @@ EOF
       echo "No active task to mark done"
       exit 0
     fi
-    TASK=$(python3 -c "import json; d=json.load(open('$CONTROL_FILE')); print(d.get('task','unknown'))" 2>/dev/null || echo "unknown")
+    TASK=$(python3 - "$CONTROL_FILE" <<'PY' 2>/dev/null || echo "unknown"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    print(json.load(f).get("task", "unknown"))
+PY
+)
     rm -f "$CONTROL_FILE"
     echo "✓ Task '$TASK' marked complete. Control file cleared."
     ;;
@@ -135,7 +156,12 @@ EOF
     # Create a mid-task git commit to preserve current state
     TASK="unknown"
     if [ -f "$CONTROL_FILE" ]; then
-      TASK=$(python3 -c "import json; d=json.load(open('$CONTROL_FILE')); print(d.get('task','unknown'))" 2>/dev/null || echo "unknown")
+      TASK=$(python3 - "$CONTROL_FILE" <<'PY' 2>/dev/null || echo "unknown"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    print(json.load(f).get("task", "unknown"))
+PY
+)
     fi
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
