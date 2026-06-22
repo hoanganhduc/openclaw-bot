@@ -1,0 +1,104 @@
+{
+  "font_hint": "Noto Sans",
+  "language": "en",
+  "math": {
+    "patterns": [
+      {
+        "re": "\\\\frac\\{([^{}]+)\\}\\{([^{}]+)\\}",
+        "repl": "\\1 over \\2"
+      },
+      {
+        "re": "\\\\sqrt\\{([^{}]+)\\}",
+        "repl": "the square root of \\1"
+      },
+      {
+        "re": "\\^\\s*2\\b",
+        "repl": " squared"
+      },
+      {
+        "re": "\\^\\s*3\\b",
+        "repl": " cubed"
+      },
+      {
+        "re": "\\^\\s*\\{?([0-9a-zA-Z]+)\\}?",
+        "repl": " to the power of \\1"
+      }
+    ],
+    "symbols": {
+      "%": " percent ",
+      "+": " plus ",
+      "=": " equals ",
+      "\u00b1": " plus or minus ",
+      "\u00b7": " times ",
+      "\u00d7": " times ",
+      "\u00f7": " divided by ",
+      "\u03b1": " alpha ",
+      "\u03b2": " beta ",
+      "\u03b8": " theta ",
+      "\u03bb": " lambda ",
+      "\u03c0": " pi ",
+      "\u2192": " approaches ",
+      "\u2200": " for all ",
+      "\u2203": " there exists ",
+      "\u2205": " the empty set ",
+      "\u2208": " in ",
+      "\u2209": " not in ",
+      "\u220f": " the product of ",
+      "\u2211": " the sum of ",
+      "\u2212": " minus ",
+      "\u221a": " the square root of ",
+      "\u221e": " infinity ",
+      "\u2229": " intersect ",
+      "\u222a": " union ",
+      "\u222b": " the integral of ",
+      "\u2248": " approximately ",
+      "\u2260": " not equal to ",
+      "\u2264": " less than or equal to ",
+      "\u2265": " greater than or equal to ",
+      "\u2282": " subset of "
+    }
+  },
+  "roles": {
+    "lecturer": {
+      "pitch": "+0Hz",
+      "rate": "+0%",
+      "volume": "+0%"
+    },
+    "narrator": {
+      "pitch": "-3Hz",
+      "rate": "-5%",
+      "volume": "+0%"
+    },
+    "pitch": {
+      "pitch": "+5Hz",
+      "rate": "+12%",
+      "volume": "+6%"
+    },
+    "presenter": {
+      "pitch": "+0Hz",
+      "rate": "+6%",
+      "volume": "+0%"
+    },
+    "teacher": {
+      "pitch": "+2Hz",
+      "rate": "-8%",
+      "volume": "+0%"
+    }
+  },
+  "tier": "tuned",
+  "voices": {
+    "edge": {
+      "default": "en-US-AvaMultilingualNeural",
+      "female": "en-US-AvaMultilingualNeural",
+      "male": "en-US-AndrewMultilingualNeural"
+    },
+    "kokoro": {
+      "default": "af_heart",
+      "female": "af_heart",
+      "male": "am_michael"
+    },
+    "piper": {
+      "default": "en_US-lessac-medium"
+    }
+  }
+}

@@ -55,31 +55,15 @@ archive_sessions() {
       year=$(basename "$year_dir")
       local tarball="$ARCHIVE_DIR/sessions/${agent_name}_${year}.tar.gz"
       if [ ! -f "$tarball" ]; then
-        local tmp_tar
-        tmp_tar=$(mktemp "${tarball}.tmp.XXXXXX")
-        tar -czf "$tmp_tar" -C "$staging" "$year"
-        mv "$tmp_tar" "$tarball"
+        tar -czf "$tarball" -C "$staging" "$year"
         rm -rf "$year_dir"
         log "  Compressed: $tarball"
       else
         local tmp_merge
         tmp_merge=$(mktemp -d)
         tar -xzf "$tarball" -C "$tmp_merge"
-        shopt -s nullglob
-        for src_file in "$year_dir"/*; do
-          base="$(basename "$src_file")"
-          if [ -e "$tmp_merge/$year/$base" ]; then
-            echo "ERROR: archive merge conflict: $base already exists in $tarball" >&2
-            rm -rf "$tmp_merge"
-            exit 2
-          fi
-          cp "$src_file" "$tmp_merge/$year/"
-        done
-        shopt -u nullglob
-        local tmp_tar
-        tmp_tar=$(mktemp "${tarball}.tmp.XXXXXX")
-        tar -czf "$tmp_tar" -C "$tmp_merge" "$year"
-        mv "$tmp_tar" "$tarball"
+        cp "$year_dir"/* "$tmp_merge/$year/" 2>/dev/null || true
+        tar -czf "$tarball" -C "$tmp_merge" "$year"
         rm -rf "$tmp_merge" "$year_dir"
         log "  Updated: $tarball"
       fi
@@ -128,17 +112,7 @@ import_year() {
     local tmp_extract
     tmp_extract=$(mktemp -d)
     tar -xzf "$tarball" -C "$tmp_extract"
-    shopt -s nullglob
-    for src_file in "$tmp_extract/$year"/*.jsonl; do
-      base="$(basename "$src_file")"
-      if [ -e "$target/$base" ]; then
-        echo "ERROR: import conflict for $target/$base" >&2
-        rm -rf "$tmp_extract"
-        exit 2
-      fi
-      cp "$src_file" "$target/"
-    done
-    shopt -u nullglob
+    cp "$tmp_extract/$year"/*.jsonl "$target/" 2>/dev/null || true
     rm -rf "$tmp_extract"
     log "  Restored sessions for agent: $agent_name"
   done

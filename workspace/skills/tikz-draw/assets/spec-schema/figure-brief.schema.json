@@ -1,0 +1,167 @@
+{
+  "$defs": {
+    "symmetry_contract": {
+      "additionalProperties": true,
+      "properties": {
+        "justification": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "mirror_vertical_axis",
+            "mirror_horizontal_axis",
+            "row_alignment",
+            "column_alignment",
+            "paired_panels"
+          ],
+          "type": "string"
+        },
+        "pairs": {
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "required",
+            "not_required",
+            "intentionally_asymmetric"
+          ],
+          "type": "string"
+        },
+        "tolerance_pt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://local/tikz-draw/figure-brief.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "backend_hint": {
+      "type": "string"
+    },
+    "caption": {
+      "type": "string"
+    },
+    "content_requirements": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "diagram_family": {
+      "enum": [
+        "flowchart",
+        "dag",
+        "tree",
+        "matrix",
+        "automaton",
+        "mindmap",
+        "sequence",
+        "commutative",
+        "graph",
+        "network",
+        "custom"
+      ],
+      "type": "string"
+    },
+    "figure_id": {
+      "pattern": "^F[1-9][0-9]*$",
+      "type": "string"
+    },
+    "graph_constructor": {
+      "type": "string"
+    },
+    "graph_layout": {
+      "type": "string"
+    },
+    "graph_mode": {
+      "enum": [
+        "auto",
+        "local",
+        "sage"
+      ],
+      "type": "string"
+    },
+    "graph_params": {
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    "graph_request": {
+      "type": "string"
+    },
+    "layout_constraints": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "output_dir": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "purpose": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "semantic_contract": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "semantic_design": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "show_labels": {
+      "type": "boolean"
+    },
+    "source_ids": {
+      "items": {
+        "pattern": "^S[1-9][0-9]*$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "symmetry_contract": {
+      "$ref": "#/$defs/symmetry_contract"
+    },
+    "title": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "figure_id",
+    "title",
+    "purpose",
+    "source_ids",
+    "diagram_family",
+    "content_requirements",
+    "layout_constraints",
+    "output_dir"
+  ],
+  "title": "TikZ Draw Figure Brief",
+  "type": "object"
+}

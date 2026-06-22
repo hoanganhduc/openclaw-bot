@@ -1,0 +1,37 @@
+{
+  "font_hint": "Noto Sans",
+  "language": "generic",
+  "math": {
+    "patterns": [],
+    "symbols": {}
+  },
+  "roles": {
+    "lecturer": {
+      "pitch": "+0Hz",
+      "rate": "+0%",
+      "volume": "+0%"
+    },
+    "narrator": {
+      "pitch": "-3Hz",
+      "rate": "-5%",
+      "volume": "+0%"
+    },
+    "pitch": {
+      "pitch": "+4Hz",
+      "rate": "+12%",
+      "volume": "+6%"
+    },
+    "presenter": {
+      "pitch": "+0Hz",
+      "rate": "+6%",
+      "volume": "+0%"
+    },
+    "teacher": {
+      "pitch": "+0Hz",
+      "rate": "-8%",
+      "volume": "+0%"
+    }
+  },
+  "tier": "generic",
+  "voices": {}
+}

@@ -1,0 +1,64 @@
+{
+  "_README": [
+    "Sample configuration for the send-email skill.",
+    "Copy the keys below into your runtime secrets file -- the path in AAS_SECRETS_FILE,",
+    "normally <runtime_root>/workspace/.secrets.json -- and replace every <placeholder>.",
+    "Use the single 'smtp' block for one account, OR the 'accounts' map for several",
+    "(select at send time with --account NAME). If both are present, an account wins:",
+    "resolution is --account / SMTP_ACCOUNT > default_account > the 'smtp' block.",
+    "Only 'user' and 'password' are sensitive; prefer a provider app password, not your",
+    "login password. Every identity field (from_name, reply_to, cc, bcc, signature,",
+    "signature_html, reply_to_self, bcc_self) is optional. This file is a template and",
+    "is never read by the skill; the '_README' key is ignored if you copy it across.",
+    "Each field can also be set per send on the CLI or via env vars (SMTP_HOST, etc.).",
+    "Optional PGP/MIME signing (needs gpg on PATH with your secret key): set",
+    "'pgp_sign': true to always sign that account, or pass --sign per message.",
+    "'pgp_key' selects the signing key (key id/fingerprint/email; defaults to the From",
+    "address). Set 'pgp_passphrase' only if the key is passphrase-protected and no",
+    "gpg-agent is available; 'gnupg_home' overrides the keyring location."
+  ],
+  "accounts": {
+    "personal": {
+      "from": "<personal-sender-address>",
+      "from_name": "Your Name",
+      "host": "smtp.gmail.com",
+      "password": "{{ REDACTED }}",
+      "pgp_key": "<gpg-key-id-or-email>",
+      "pgp_sign": false,
+      "port": 587,
+      "security": "starttls",
+      "user": "<gmail-username>"
+    },
+    "work": {
+      "from": "<work-sender-address>",
+      "from_name": "Your Name (Work)",
+      "host": "smtp.office365.com",
+      "password": "{{ REDACTED }}",
+      "pgp_key": "<gpg-key-id-or-email>",
+      "pgp_passphrase": "<key-passphrase-only-if-no-gpg-agent>",
+      "pgp_sign": false,
+      "port": 587,
+      "security": "starttls",
+      "user": "<work-username>"
+    }
+  },
+  "default_account": "personal",
+  "smtp": {
+    "bcc": [],
+    "bcc_self": true,
+    "cc": [],
+    "from": "<sender-address>",
+    "from_name": "Your Name",
+    "host": "smtp.example.com",
+    "password": "{{ REDACTED }}",
+    "pgp_key": "<gpg-key-id-or-email>",
+    "pgp_sign": false,
+    "port": 587,
+    "reply_to": "<reply-address>",
+    "reply_to_self": true,
+    "security": "starttls",
+    "signature": "--\nYour Name\nYour Lab",
+    "signature_html": "<p>Your Name<br>Your Lab</p>",
+    "user": "<smtp-username>"
+  }
+}

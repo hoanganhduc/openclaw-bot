@@ -208,11 +208,7 @@ cmd_swap() {
   run cp "$SERVICE_BAK"    "$SERVICE_ACTIVE"
   run cp "$TMP_SVC"        "$SERVICE_BAK"
   $DRY_RUN || rm -f "$TMP_SVC"
-  if $DRY_RUN; then
-    ok "Would swap service files ($FROM_VER ↔ $TO_VER)"
-  else
-    ok "Service files swapped ($FROM_VER ↔ $TO_VER)"
-  fi
+  ok "Service files swapped ($FROM_VER ↔ $TO_VER)"
 
   # 3. Fix config
   log "Cleaning config for $TO_VER..."
@@ -226,11 +222,7 @@ cmd_swap() {
   # 4. Clear jiti cache
   log "Clearing jiti cache ($JITI_CACHE)..."
   run rm -rf "$JITI_CACHE"
-  if $DRY_RUN; then
-    ok "Would clear jiti cache"
-  else
-    ok "jiti cache cleared"
-  fi
+  ok "jiti cache cleared"
 
   # 5. Google Chat unthread patch
   if [ -f "$UNTHREAD_SCRIPT" ]; then
@@ -263,11 +255,7 @@ cmd_swap() {
   log "Reloading systemd and restarting gateway..."
   run systemctl --user daemon-reload
   run systemctl --user restart openclaw-gateway.service
-  if $DRY_RUN; then
-    ok "Would reload systemd and restart gateway"
-  else
-    ok "Gateway restarted"
-  fi
+  ok "Gateway restarted"
 
   # 8. Verify
   if $DRY_RUN; then

@@ -1,6 +1,6 @@
 # Injection Pattern Database
 
-**Last updated:** 2026-06-07T02:17:01Z  
+**Last updated:** 2026-06-21T02:17:01Z  
 **Sources:** OWASP LLM Top 10 v2.0 (LLM01), HuggingFace deepset/prompt-injections, MITRE ATLAS  
 **Succeeded this run:** owasp, huggingface, mitre_atlas  
 

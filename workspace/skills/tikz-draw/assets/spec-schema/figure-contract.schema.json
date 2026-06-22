@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "contract_entry": {
+      "additionalProperties": true,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://local/tikz-draw/figure-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "approval_criteria": {
+      "items": {
+        "$ref": "#/$defs/contract_entry"
+      },
+      "type": "array"
+    },
+    "context_summary": {
+      "type": "string"
+    },
+    "figure_id": {
+      "pattern": "^F[1-9][0-9]*$",
+      "type": "string"
+    },
+    "forbidden_simplifications": {
+      "items": {
+        "$ref": "#/$defs/contract_entry"
+      },
+      "type": "array"
+    },
+    "intent": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "notation_requirements": {
+      "items": {
+        "$ref": "#/$defs/contract_entry"
+      },
+      "type": "array"
+    },
+    "recommended_diagram_family": {
+      "enum": [
+        "flowchart",
+        "dag",
+        "tree",
+        "commutative",
+        "graph"
+      ],
+      "type": "string"
+    },
+    "request": {
+      "type": "string"
+    },
+    "required_objects": {
+      "items": {
+        "$ref": "#/$defs/contract_entry"
+      },
+      "type": "array"
+    },
+    "required_relations": {
+      "items": {
+        "$ref": "#/$defs/contract_entry"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "figure-contract.v1",
+      "type": "string"
+    },
+    "source_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "figure_id",
+    "request",
+    "context_summary",
+    "recommended_diagram_family",
+    "intent",
+    "required_objects",
+    "required_relations",
+    "forbidden_simplifications",
+    "notation_requirements",
+    "approval_criteria"
+  ],
+  "title": "TikZ Draw Figure Contract",
+  "type": "object"
+}

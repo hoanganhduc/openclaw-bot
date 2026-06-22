@@ -19,7 +19,16 @@ SAGE_CONTAINER="sagemath-worker"
 OPENCLAW_BIN="${OPENCLAW_BIN:-openclaw}"
 OUTPUT_MAX_BYTES=1048576  # 1MB
 
-mkdir -p "$SEND_QUEUE" "$JOB_QUEUE" "$SAGE_OUTPUT"
+# --- Manim (host-native render via the manim-math-animation venv; SEPARATE queue dir
+#     so manim jobs never enter the sage glob on $JOB_QUEUE) ---
+MANIM_QUEUE="$WORKSPACE/data/manim-queue"
+MANIM_OUTPUT="$WORKSPACE/data/research/manim"
+MANIM_LOG="$MANIM_OUTPUT/run-log.jsonl"
+MANIM_RUNNER="$WORKSPACE/skills/manim-math-animation/run_manim_math_animation.sh"
+MANIM_PYTHON="${MANIM_PYTHON:-{{ USER_HOME }}/.local/share/manim-math-animation-venv/bin/python}"
+MANIM_RENDER_TIMEOUT_DEFAULT=900
+
+mkdir -p "$SEND_QUEUE" "$JOB_QUEUE" "$SAGE_OUTPUT" "$MANIM_QUEUE" "$MANIM_OUTPUT"
 
 log() { echo "[$(date -u +%H:%M:%S)] $*" >&2; }
 
@@ -316,6 +325,135 @@ with open('$SAGE_LOG', 'a') as f:
   fi
 }
 
+# --- Manim execution (host-native render via the manim venv; mirrors the sage handler,
+#     but runs on the host, not in a container; fully guarded so it can never abort the loop) ---
+
+write_manim_result() {
+  local result_file="$1"
+  RESULT_FILE="$result_file" \
+  STATUS="${2:-}" \
+  JOB_ID="${3:-}" \
+  MESSAGE="${4:-}" \
+  DURATION="${5:-}" \
+  EXIT_CODE="${6:-}" \
+  CLIP="${7:-}" \
+  python3 - <<'PY'
+import json
+import os
+
+payload = {"status": os.environ["STATUS"]}
+if os.environ["JOB_ID"]:
+    payload["job_id"] = os.environ["JOB_ID"]
+if os.environ["MESSAGE"]:
+    payload["message"] = os.environ["MESSAGE"]
+if os.environ["DURATION"]:
+    payload["duration_seconds"] = int(os.environ["DURATION"])
+if os.environ["EXIT_CODE"]:
+    payload["exit_code"] = int(os.environ["EXIT_CODE"])
+if os.environ["CLIP"]:
+    payload["clip"] = os.environ["CLIP"]
+
+with open(os.environ["RESULT_FILE"], "w", encoding="utf-8") as handle:
+    json.dump(payload, handle)
+PY
+}
+
+process_manim_job() {
+  local job_file="$1"
+  local job_name job_id
+  job_name=$(basename "$job_file")
+  job_id="${job_name%.working}"
+  job_id="${job_id%.json}"
+  local result_file="$MANIM_QUEUE/${job_id}.result"
+  local cancel_file="$MANIM_QUEUE/${job_id}.cancel"
+  local start_time
+  start_time=$(date +%s)
+
+  local spec output quality job_timeout save_label
+  spec=$(python3 -c "import json; print(json.load(open('$job_file'))['spec'])" 2>/dev/null || echo "")
+  output=$(python3 -c "import json; print(json.load(open('$job_file')).get('output',''))" 2>/dev/null || echo "")
+  quality=$(python3 -c "import json; print(json.load(open('$job_file')).get('quality','-qh'))" 2>/dev/null || echo "-qh")
+  job_timeout=$(python3 -c "import json; print(json.load(open('$job_file')).get('timeout', $MANIM_RENDER_TIMEOUT_DEFAULT))" 2>/dev/null || echo "$MANIM_RENDER_TIMEOUT_DEFAULT")
+  save_label=$(python3 -c "import json; print(json.load(open('$job_file')).get('save_label',''))" 2>/dev/null || echo "")
+
+  if [[ -z "$spec" ]]; then
+    write_manim_result "$result_file" "error" "$job_id" "Manim job missing 'spec' path" "" "" ""
+    log "MANIM FAIL $job_id: no spec"
+    rm -f "$job_file"
+    return 0
+  fi
+  local host_spec="${spec/\/workspace/$WORKSPACE}"
+  if [[ ! -f "$host_spec" ]]; then
+    write_manim_result "$result_file" "error" "$job_id" "Spec not found on host: $spec" "" "" ""
+    log "MANIM FAIL $job_id: spec not found $host_spec"
+    rm -f "$job_file"
+    return 0
+  fi
+  [[ -n "$output" ]] || output="{{ PRIVATE_DATA_DIR }}/manim-queue/${job_id}.mp4"
+  local host_out="${output/\/workspace/$WORKSPACE}"
+  mkdir -p "$(dirname "$host_out")" 2>/dev/null || true
+
+  log "MANIM $job_id: quality=$quality timeout=${job_timeout}s"
+
+  local tmp_output="$MANIM_QUEUE/${job_id}.stdout"
+  MMA_PYTHON="$MANIM_PYTHON" HOME="${HOME:-{{ USER_HOME }}}" \
+    timeout "$job_timeout" bash "$MANIM_RUNNER" render --spec "$host_spec" --output "$host_out" --quality="$quality" \
+    > "$tmp_output" 2>&1 &
+  local bg_pid=$!
+
+  while kill -0 "$bg_pid" 2>/dev/null; do
+    if [[ -f "$cancel_file" ]]; then
+      kill "$bg_pid" 2>/dev/null || true
+      wait "$bg_pid" 2>/dev/null || true
+      rm -f "$cancel_file" "$tmp_output"
+      write_manim_result "$result_file" "cancelled" "$job_id" "Job cancelled by user" "" "" ""
+      log "MANIM CANCEL $job_id"
+      rm -f "$job_file"
+      return 0
+    fi
+    sleep 1
+  done
+
+  local exit_code
+  if wait "$bg_pid" 2>/dev/null; then exit_code=0; else exit_code=$?; fi
+  exit_code="${exit_code:-0}"
+  local output_text
+  output_text=$(cat "$tmp_output" 2>/dev/null || echo "")
+  rm -f "$tmp_output"
+  local end_time duration
+  end_time=$(date +%s)
+  duration=$((end_time - start_time))
+
+  if [[ "$exit_code" -eq 0 && -f "$host_out" ]]; then
+    write_manim_result "$result_file" "ok" "$job_id" "" "$duration" "0" "$output"
+    log "MANIM OK $job_id (${duration}s) -> $output"
+    if [[ -n "$save_label" ]]; then
+      cp "$host_out" "$MANIM_OUTPUT/${save_label}.mp4" 2>/dev/null || true
+      log "MANIM SAVED $job_id -> ${save_label}.mp4"
+    fi
+  elif [[ "$exit_code" -eq 124 ]]; then
+    write_manim_result "$result_file" "error" "$job_id" "Render timed out after ${job_timeout}s. Increase --timeout or lower --quality." "$duration" "124" ""
+    log "MANIM TIMEOUT $job_id (${duration}s)"
+  elif [[ "$exit_code" -eq 137 ]]; then
+    write_manim_result "$result_file" "error" "$job_id" "Render killed (likely out of memory). Lower --quality or simplify the scene." "$duration" "137" ""
+    log "MANIM OOM $job_id (${duration}s)"
+  else
+    local tail_msg
+    tail_msg=$(echo "$output_text" | tail -c 600)
+    write_manim_result "$result_file" "error" "$job_id" "Manim render failed (exit $exit_code): $tail_msg" "$duration" "$exit_code" ""
+    log "MANIM FAIL $job_id (exit $exit_code, ${duration}s)"
+  fi
+
+  python3 -c "
+import json, datetime
+entry = {'timestamp': datetime.datetime.utcnow().isoformat()+'Z', 'job_id': '$job_id', 'quality': '$quality', 'duration_seconds': $duration, 'exit_code': $exit_code, 'save_label': '$save_label' or None}
+with open('$MANIM_LOG','a') as f: f.write(json.dumps(entry)+'\n')
+" 2>/dev/null || true
+
+  rm -f "$cancel_file" "$job_file"
+  return 0
+}
+
 # --- Health check for persistent container ---
 HEALTH_CHECK_INTERVAL=150  # every ~5 minutes (150 * 2s sleep)
 health_counter=0
@@ -349,6 +487,14 @@ while true; do
     [[ -f "$job_file" ]] || continue
     claimed_job=$(claim_job_file "$job_file") || continue
     process_sage_job "$claimed_job"
+  done
+
+  # Process manim queue (host-native render). Contained with || so a manim job
+  # can never abort the worker loop (protects type=send and type=sage delivery).
+  for job_file in "$MANIM_QUEUE"/*.json; do
+    [[ -f "$job_file" ]] || continue
+    claimed_job=$(claim_job_file "$job_file") || continue
+    process_manim_job "$claimed_job" || log "MANIM handler error (contained; worker continues)"
   done
 
   # Periodic health check
