@@ -8,6 +8,18 @@ export AAS_SECRETS_FILE="${AAS_SECRETS_FILE:-${HOME:-/workspace}/.config/send-em
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 SCRIPT="$SCRIPT_DIR/send_email.py"
 
+# PGP-signed sends can't run in the OpenClaw sandbox (no gpg, no private key).
+# Route them to the host job queue, which signs with the host key. Only kicks in
+# when --sign is requested AND gpg is unavailable locally (so host/Codex installs,
+# which have gpg, keep signing locally and unsigned sandbox sends run locally).
+if ! command -v gpg >/dev/null 2>&1; then
+  for _arg in "$@"; do
+    if [[ "$_arg" == "--sign" ]]; then
+      exec "$SCRIPT_DIR/run_send_email_host.sh" "$@"
+    fi
+  done
+fi
+
 if [[ ! -f "$SCRIPT" ]]; then
   printf 'runtime helper not found: %s\n' "$SCRIPT" >&2
   exit 127

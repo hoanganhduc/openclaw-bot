@@ -28,7 +28,18 @@ MANIM_RUNNER="$WORKSPACE/skills/manim-math-animation/run_manim_math_animation.sh
 MANIM_PYTHON="${MANIM_PYTHON:-{{ USER_HOME }}/.local/share/manim-math-animation-venv/bin/python}"
 MANIM_RENDER_TIMEOUT_DEFAULT=900
 
-mkdir -p "$SEND_QUEUE" "$JOB_QUEUE" "$SAGE_OUTPUT" "$MANIM_QUEUE" "$MANIM_OUTPUT"
+# --- Email send (host-native via send_email.py; SEPARATE queue dir). The OpenClaw
+#     sandbox has no gpg/private key, so PGP-signed sends are routed here: the host
+#     runs send_email.py with the host send-email config + ~/.gnupg, so the private
+#     key never enters the sandbox. ---
+EMAIL_QUEUE="$WORKSPACE/data/email-queue"
+EMAIL_OUTPUT="$WORKSPACE/data/research/email"
+EMAIL_LOG="$EMAIL_OUTPUT/run-log.jsonl"
+SEND_EMAIL_PY="${SEND_EMAIL_PY:-{{ USER_HOME }}/.local/share/ai-agents-skills/runtime/workspace/skills/send-email/send_email.py}"
+SEND_EMAIL_SECRETS="${SEND_EMAIL_SECRETS:-{{ USER_HOME }}/.config/send-email/secrets.json}"
+EMAIL_TIMEOUT_DEFAULT=120
+
+mkdir -p "$SEND_QUEUE" "$JOB_QUEUE" "$SAGE_OUTPUT" "$MANIM_QUEUE" "$MANIM_OUTPUT" "$EMAIL_QUEUE" "$EMAIL_OUTPUT"
 
 log() { echo "[$(date -u +%H:%M:%S)] $*" >&2; }
 
@@ -454,6 +465,45 @@ with open('$MANIM_LOG','a') as f: f.write(json.dumps(entry)+'\n')
   return 0
 }
 
+# --- Email send (host-native; runs send_email.py with the host config + ~/.gnupg so
+#     PGP signing works and the private key never enters the sandbox) ---
+
+process_email_job() {
+  local job_file="$1"
+  local job_name job_id
+  job_name=$(basename "$job_file"); job_id="${job_name%.working}"; job_id="${job_id%.json}"
+  local result_file="$EMAIL_QUEUE/${job_id}.result"
+  local start_time; start_time=$(date +%s)
+  log "EMAIL $job_id: running send_email.py on host"
+
+  local out
+  out=$(AAS_SECRETS_FILE="$SEND_EMAIL_SECRETS" HOME="${HOME:-{{ USER_HOME }}}" GNUPGHOME="${GNUPGHOME:-{{ USER_HOME }}/.gnupg}" \
+        timeout "$EMAIL_TIMEOUT_DEFAULT" python3 - "$job_file" "$SEND_EMAIL_PY" <<'PY'
+import json, sys, subprocess
+try:
+    job = json.load(open(sys.argv[1]))
+    argv = job.get("argv", [])
+    assert isinstance(argv, list) and all(isinstance(a, str) for a in argv), "argv must be a list of strings"
+except Exception as e:
+    print(json.dumps({"status": "error", "message": f"bad email job: {e}"})); sys.exit(0)
+r = subprocess.run([sys.executable, sys.argv[2], *argv], capture_output=True, text=True)
+out = r.stdout.strip()
+print(out if out else json.dumps({"status": "error", "exit_code": r.returncode,
+      "message": (r.stderr.strip()[-500:] or "send_email.py produced no output")}))
+PY
+) || out='{"status":"error","message":"host email handler timed out or failed"}'
+  printf '%s' "$out" > "$result_file"
+  local duration=$(( $(date +%s) - start_time ))
+  log "EMAIL $job_id: done (${duration}s)"
+  python3 -c "
+import json, datetime
+with open('$EMAIL_LOG','a') as f:
+    f.write(json.dumps({'timestamp': datetime.datetime.utcnow().isoformat()+'Z', 'job_id': '$job_id', 'duration_seconds': $duration})+'\n')
+" 2>/dev/null || true
+  rm -f "$job_file"
+  return 0
+}
+
 # --- Health check for persistent container ---
 HEALTH_CHECK_INTERVAL=150  # every ~5 minutes (150 * 2s sleep)
 health_counter=0
@@ -495,6 +545,14 @@ while true; do
     [[ -f "$job_file" ]] || continue
     claimed_job=$(claim_job_file "$job_file") || continue
     process_manim_job "$claimed_job" || log "MANIM handler error (contained; worker continues)"
+  done
+
+  # Process email queue (host-native signed send). Contained with || so it can never
+  # abort the worker loop (protects type=send and type=sage delivery).
+  for job_file in "$EMAIL_QUEUE"/*.json; do
+    [[ -f "$job_file" ]] || continue
+    claimed_job=$(claim_job_file "$job_file") || continue
+    process_email_job "$claimed_job" || log "EMAIL handler error (contained; worker continues)"
   done
 
   # Periodic health check

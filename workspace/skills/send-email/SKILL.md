@@ -206,6 +206,12 @@ signature, which works with HTML and attachments). This needs **GnuPG (`gpg`)** 
 PATH with your secret key in the keyring; it adds no Python dependency, and
 unsigned sending still works if `gpg` is absent.
 
+**In the OpenClaw sandbox** there is no `gpg` and no private key, so `run_send_email.sh`
+automatically routes any `--sign` send to the host job queue: the host worker runs
+`send_email.py` with the host send-email config and `~/.gnupg`, signs, and sends — your
+private key never enters the sandbox. Just use `send --sign` as normal; it returns the
+same JSON (`"signed": true`). Unsigned sends still run locally in the sandbox.
+
 - Enable per send with `--sign`, or per account with `"pgp_sign": true`.
 - The signing key defaults to the sender address; override with `--pgp-key <id>`
   or `"pgp_key"`. Use `--gnupg-home`/`"gnupg_home"` for a non-default keyring, and
