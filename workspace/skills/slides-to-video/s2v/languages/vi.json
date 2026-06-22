@@ -1,0 +1,100 @@
+{
+  "font_hint": "Noto Sans",
+  "language": "vi",
+  "math": {
+    "patterns": [
+      {
+        "re": "\\\\frac\\{([^{}]+)\\}\\{([^{}]+)\\}",
+        "repl": "\\1 ph\u1ea7n \\2"
+      },
+      {
+        "re": "\\\\sqrt\\{([^{}]+)\\}",
+        "repl": "c\u0103n b\u1eadc hai c\u1ee7a \\1"
+      },
+      {
+        "re": "\\^\\s*2\\b",
+        "repl": " b\u00ecnh ph\u01b0\u01a1ng"
+      },
+      {
+        "re": "\\^\\s*3\\b",
+        "repl": " l\u1eadp ph\u01b0\u01a1ng"
+      },
+      {
+        "re": "\\^\\s*\\{?([0-9a-zA-Z]+)\\}?",
+        "repl": " m\u0169 \\1"
+      }
+    ],
+    "symbols": {
+      "%": " ph\u1ea7n tr\u0103m ",
+      "+": " c\u1ed9ng ",
+      "=": " b\u1eb1ng ",
+      "\u00b1": " c\u1ed9ng tr\u1eeb ",
+      "\u00b7": " nh\u00e2n ",
+      "\u00d7": " nh\u00e2n ",
+      "\u00f7": " chia ",
+      "\u03b1": " an-pha ",
+      "\u03b2": " b\u00ea-ta ",
+      "\u03b8": " t\u00ea-ta ",
+      "\u03bb": " lam-\u0111a ",
+      "\u03c0": " pi ",
+      "\u2192": " suy ra ",
+      "\u2200": " v\u1edbi m\u1ecdi ",
+      "\u2203": " t\u1ed3n t\u1ea1i ",
+      "\u2205": " t\u1eadp r\u1ed7ng ",
+      "\u2208": " thu\u1ed9c ",
+      "\u2209": " kh\u00f4ng thu\u1ed9c ",
+      "\u220f": " t\u00edch ",
+      "\u2211": " t\u1ed5ng ",
+      "\u2212": " tr\u1eeb ",
+      "\u221a": " c\u0103n b\u1eadc hai c\u1ee7a ",
+      "\u221e": " v\u00f4 c\u00f9ng ",
+      "\u2229": " giao ",
+      "\u222a": " h\u1ee3p ",
+      "\u222b": " t\u00edch ph\u00e2n ",
+      "\u2248": " x\u1ea5p x\u1ec9 ",
+      "\u2260": " kh\u00e1c ",
+      "\u2264": " nh\u1ecf h\u01a1n ho\u1eb7c b\u1eb1ng ",
+      "\u2265": " l\u1edbn h\u01a1n ho\u1eb7c b\u1eb1ng ",
+      "\u2282": " l\u00e0 t\u1eadp con c\u1ee7a "
+    }
+  },
+  "note": "Kokoro has no Vietnamese voice; the auto ladder is edge (online) -> piper (offline).",
+  "roles": {
+    "lecturer": {
+      "pitch": "+0Hz",
+      "rate": "+0%",
+      "volume": "+0%"
+    },
+    "narrator": {
+      "pitch": "-2Hz",
+      "rate": "-5%",
+      "volume": "+0%"
+    },
+    "pitch": {
+      "pitch": "+3Hz",
+      "rate": "+12%",
+      "volume": "+6%"
+    },
+    "presenter": {
+      "pitch": "+0Hz",
+      "rate": "+5%",
+      "volume": "+0%"
+    },
+    "teacher": {
+      "pitch": "+0Hz",
+      "rate": "-8%",
+      "volume": "+0%"
+    }
+  },
+  "tier": "tuned",
+  "voices": {
+    "edge": {
+      "default": "vi-VN-HoaiMyNeural",
+      "female": "vi-VN-HoaiMyNeural",
+      "male": "vi-VN-NamMinhNeural"
+    },
+    "piper": {
+      "default": "vi_VN-vais1000-medium"
+    }
+  }
+}

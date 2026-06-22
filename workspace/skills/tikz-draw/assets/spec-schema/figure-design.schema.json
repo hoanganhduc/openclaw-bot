@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "claim": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "caption",
+            "source_prose",
+            "request",
+            "contract"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "mark": {
+      "additionalProperties": true,
+      "properties": {
+        "boundary_style": {
+          "type": "string"
+        },
+        "caption_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "counts_as_graph_object": {
+          "type": "boolean"
+        },
+        "fill_policy": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "label_policy": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "graph_object",
+            "annotation",
+            "callout",
+            "correspondence",
+            "gadget_region",
+            "highlight_region",
+            "legend"
+          ],
+          "type": "string"
+        },
+        "semantic_type": {
+          "type": "string"
+        },
+        "source_prose_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_targets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target_targets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "visual_encoding": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "semantic_type",
+        "visual_encoding",
+        "counts_as_graph_object"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://local/tikz-draw/figure-design.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "approval_requirements": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "audience_task": {
+      "minLength": "{{ REDACTED }}",
+      "type": "{{ REDACTED }}"
+    },
+    "caption_claims": {
+      "items": {
+        "$ref": "#/$defs/claim"
+      },
+      "type": "array"
+    },
+    "design_intent": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "figure_id": {
+      "pattern": "^F[1-9][0-9]*$",
+      "type": "string"
+    },
+    "marks": {
+      "items": {
+        "$ref": "#/$defs/mark"
+      },
+      "type": "array"
+    },
+    "rationale": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "figure-design.v1",
+      "type": "string"
+    },
+    "source_prose_claims": {
+      "items": {
+        "$ref": "#/$defs/claim"
+      },
+      "type": "array"
+    },
+    "visual_encoding_policy": {
+      "additionalProperties": true,
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "figure_id",
+    "design_intent",
+    "audience_task",
+    "caption_claims",
+    "source_prose_claims",
+    "marks",
+    "visual_encoding_policy",
+    "rationale",
+    "approval_requirements"
+  ],
+  "title": "TikZ Draw Figure Design",
+  "type": "object"
+}

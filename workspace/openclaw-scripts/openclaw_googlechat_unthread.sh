@@ -7,8 +7,8 @@ if [[ "${1:-}" == "--apply" ]]; then
 elif [[ "${1:-}" == "--help" ]]; then
   cat <<'EOF'
 Usage:
-  ./openclaw_googlechat_unthread.sh          # dry-run only
-  ./openclaw_googlechat_unthread.sh --apply  # write changes
+  ./openclaw_googlechat_unthread_v3.sh          # dry-run only
+  ./openclaw_googlechat_unthread_v3.sh --apply  # write changes
 
 Optional env overrides:
   OPENCLAW_CONFIG=/full/path/to/openclaw.json

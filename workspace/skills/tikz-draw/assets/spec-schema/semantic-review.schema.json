@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "compile_status": {
+      "type": "string"
+    },
+    "design_review": {
+      "type": "object"
+    },
+    "design_status": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "family": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "final_verdict": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mismatch_codes": {
+      "type": "array"
+    },
+    "mismatches": {
+      "type": "array"
+    },
+    "overlap_status": {
+      "type": "string"
+    },
+    "review_status": {
+      "type": "string"
+    },
+    "rule_hits": {
+      "type": "array"
+    },
+    "rule_refs": {
+      "type": "array"
+    },
+    "semantic_status": {
+      "type": "string"
+    },
+    "semantic_verdict": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "static_status": {
+      "type": "string"
+    },
+    "supported_family": {
+      "type": "boolean"
+    },
+    "symmetry_review": {
+      "type": "object"
+    },
+    "symmetry_status": {
+      "type": "string"
+    },
+    "visual_review": {
+      "additionalProperties": true,
+      "properties": {
+        "findings": {
+          "type": "array"
+        },
+        "passes_run": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "passes_run",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "visual_status": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "review_status",
+    "family",
+    "static_status",
+    "visual_status",
+    "overlap_status",
+    "compile_status",
+    "semantic_status",
+    "design_status",
+    "symmetry_status",
+    "semantic_verdict",
+    "final_verdict",
+    "supported_family",
+    "mismatches",
+    "mismatch_codes",
+    "rule_hits",
+    "rule_refs",
+    "warnings",
+    "visual_review",
+    "evidence"
+  ],
+  "title": "TikZ Draw Semantic Review Report",
+  "type": "object"
+}

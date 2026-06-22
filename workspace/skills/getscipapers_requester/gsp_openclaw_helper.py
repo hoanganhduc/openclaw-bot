@@ -73,14 +73,15 @@ def load_settings() -> Settings:
         s = str(p)
         original = s
 
-        legacy_home = re.match(r"^/home/[^/]+/\.claude(?=/|$)", s)
-        if legacy_home:
-            s = str(workspace_root) + s[legacy_home.end():]
-            warnings.append(f"{label}: normalized legacy path from {original} to {s}")
-        elif s.startswith("{{ USER_HOME }}/.claude"):
-            old_root = "{{ USER_HOME }}/.claude"
-            s = str(workspace_root) + s[len(old_root):]
-            warnings.append(f"{label}: normalized legacy path from {original} to {s}")
+        replacements = (
+            ("/home/hoanganhduc/.claude", str(workspace_root)),
+            ("{{ USER_HOME }}/.claude", str(workspace_root)),
+        )
+        for old_root, new_root in replacements:
+            if s.startswith(old_root):
+                s = new_root + s[len(old_root):]
+                warnings.append(f"{label}: normalized legacy path from {original} to {s}")
+                break
 
         legacy_workspace_path = str(workspace_root / "research" / "getscipapers_bot")
         canonical_workspace_path = str(workspace_root / "data" / "research" / "getscipapers_bot")

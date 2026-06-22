@@ -335,6 +335,7 @@
       "actions": {
         "reactions": true
       },
+      "appPrincipal": "106532770295053600696",
       "audience": "{{ REDACTED }}",
       "audienceType": "{{ REDACTED }}",
       "enabled": true,
@@ -378,10 +379,7 @@
       },
       "enabled": true,
       "groupAllowFrom": [],
-      "groupPolicy": "allowlist",
-      "webhookPath": "/zalo",
-      "webhookSecret": "{{ REDACTED }}",
-      "webhookUrl": "https://openclaw.{{ PRIVATE_ID }}.ts.net/zalo"
+      "groupPolicy": "allowlist"
     },
     "zulip": {
       "apiKey": {
@@ -469,12 +467,80 @@
     }
   },
   "meta": {
-    "lastTouchedAt": "2026-06-05T10:29:33.861Z",
+    "lastTouchedAt": "2026-06-15T03:04:37.847Z",
     "lastTouchedVersion": "2026.6.6"
   },
   "models": {
     "mode": "merge",
     "providers": {
+      "deepseek": {
+        "api": "openai-completions",
+        "baseUrl": "https://api.deepseek.com",
+        "models": [
+          {
+            "api": "openai-completions",
+            "compat": {
+              "supportsUsageInStreaming": true
+            },
+            "contextWindow": 131072,
+            "cost": {
+              "cacheRead": 0.028,
+              "cacheWrite": 0,
+              "input": 0.28,
+              "output": 0.42
+            },
+            "id": "deepseek-chat",
+            "input": [
+              "text"
+            ],
+            "maxTokens": "{{ REDACTED }}",
+            "name": "DeepSeek Chat",
+            "reasoning": false
+          },
+          {
+            "api": "openai-completions",
+            "compat": {
+              "supportsUsageInStreaming": true
+            },
+            "contextWindow": 131072,
+            "cost": {
+              "cacheRead": 0.028,
+              "cacheWrite": 0,
+              "input": 0.28,
+              "output": 0.42
+            },
+            "id": "deepseek-reasoner",
+            "input": [
+              "text"
+            ],
+            "maxTokens": "{{ REDACTED }}",
+            "name": "DeepSeek Reasoner",
+            "reasoning": true
+          },
+          {
+            "api": "openai-completions",
+            "compat": {
+              "supportsReasoningEffort": true,
+              "supportsUsageInStreaming": true,
+              "thinkingFormat": "openai"
+            },
+            "contextWindow": 1048576,
+            "cost": {
+              "cacheRead": 0.003625,
+              "cacheWrite": 0,
+              "input": 0.435,
+              "output": 0.87
+            },
+            "id": "deepseek-v4-pro",
+            "input": [
+              "text"
+            ],
+            "maxTokens": "{{ REDACTED }}",
+            "name": "DeepSeek V4 Pro",
+            "reasoning": true
+          }
+        ]
+      },
       "groq": {
         "api": "openai-completions",
         "baseUrl": "https://api.groq.com/openai/v1",
@@ -711,6 +777,7 @@
       "zai",
       "browser",
       "memory-core",
+      "deepseek",
       "groq",
       "codex"
     ],
@@ -721,6 +788,10 @@
         "enabled": true
       },
       "codex": {
+        "enabled": true
+      },
+      "deepseek": {
+        "config": {},
         "enabled": true
       },
       "github-copilot": {
@@ -949,6 +1020,6 @@
     "lastRunAt": "2026-06-05T10:13:13.566Z",
     "lastRunCommand": "doctor",
     "lastRunMode": "local",
-    "lastRunVersion": "2026.6.6"
+    "lastRunVersion": "2026.6.1"
   }
 }

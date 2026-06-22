@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "extractor_version": {
+      "type": "string"
+    },
+    "manifest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "normalization": {
+      "type": "object"
+    },
+    "page_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pages": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "bbox": {
+            "type": "object"
+          },
+          "drawings": {
+            "type": "array"
+          },
+          "height": {
+            "type": "number"
+          },
+          "page_index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "width": {
+            "type": "number"
+          },
+          "words": {
+            "type": "array"
+          }
+        },
+        "required": [
+          "page_index",
+          "width",
+          "height",
+          "bbox",
+          "drawings",
+          "words"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "pdf": {
+      "type": "string"
+    },
+    "pdf_sha256": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "extractor_version",
+    "pdf",
+    "pdf_sha256",
+    "manifest",
+    "page_count",
+    "normalization",
+    "pages"
+  ],
+  "title": "TikZ Draw Render Semantics",
+  "type": "object"
+}
