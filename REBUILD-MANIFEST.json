@@ -1,6 +1,6 @@
 {
   "schema": "openclaw.rebuild-manifest.v1",
-  "updated": "2026-06-12",
+  "updated": "2026-06-23",
   "description": "Allowlist-first manifest for rebuilding OpenClaw core/settings/skills/runtime scripts without public research data or secret values.",
   "openclaw": {
     "observed_version": "2026.6.6",

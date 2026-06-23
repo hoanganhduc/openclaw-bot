@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenClaw Job Queue Worker (file sending + SageMath)
+Description=OpenClaw Job Queue Worker (file send + SageMath + Manim render + signed email)
 After=openclaw-gateway.service
 
 [Service]
