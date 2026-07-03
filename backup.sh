@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./backup.sh [--prefix DIR] [--dry-run] [--verify] [--output DIR]
+Usage: ./backup.sh [--prefix DIR] [--dry-run] [--verify] [--output DIR]\nEnv:   OPENCLAW_BACKUP_PASSPHRASE_FILE=/path (non-interactive gpg batch/loopback)
 
 Creates an owner-private encrypted archive. This script may include private
 data; it must not be used as public sync input.
@@ -82,11 +82,20 @@ if ! command -v gpg >/dev/null 2>&1; then
   exit 1
 fi
 
-tar -C "$PREFIX" -czf - "${existing[@]}" | gpg --symmetric --cipher-algo AES256 -o "$ARCHIVE"
+# Non-interactive mode: OPENCLAW_BACKUP_PASSPHRASE_FILE points at a passphrase
+# file (chmod 600); gpg then runs batch/loopback so cron can drive this script.
+# Without it, gpg prompts interactively as before.
+GPG_PASS_OPTS=()
+if [[ -n "${OPENCLAW_BACKUP_PASSPHRASE_FILE:-}" ]]; then
+  [[ -r "$OPENCLAW_BACKUP_PASSPHRASE_FILE" ]] || { echo "passphrase file not readable: $OPENCLAW_BACKUP_PASSPHRASE_FILE" >&2; exit 2; }
+  GPG_PASS_OPTS=(--batch --pinentry-mode loopback --passphrase-file "$OPENCLAW_BACKUP_PASSPHRASE_FILE")
+fi
+
+tar -C "$PREFIX" -czf - "${existing[@]}" | gpg "${GPG_PASS_OPTS[@]}" --symmetric --cipher-algo AES256 -o "$ARCHIVE"
 chmod 600 "$ARCHIVE"
 echo "wrote encrypted archive: $ARCHIVE"
 
 if [[ "$VERIFY" -eq 1 ]]; then
-  gpg --decrypt "$ARCHIVE" 2>/dev/null | tar -tzf - >/dev/null
+  gpg "${GPG_PASS_OPTS[@]}" --decrypt "$ARCHIVE" 2>/dev/null | tar -tzf - >/dev/null
   echo "verify: ok"
 fi
