@@ -13,7 +13,7 @@ if [[ -d /workspace && -d /workspace/skills ]]; then
     export PYTHONPATH="/workspace/.local${PYTHONPATH:+:${PYTHONPATH}}"
   fi
 else
-  export VNU_EOFFICE_REPO="${VNU_EOFFICE_REPO:-{{ USER_HOME }}/vnueoffice}"
+  export VNU_EOFFICE_REPO="${VNU_EOFFICE_REPO:-{{ OPENCLAW_WORKSPACE }}/vnueoffice_repo}"
   export VNU_OPENCLAW_DATA_DIR="${VNU_OPENCLAW_DATA_DIR:-{{ OPENCLAW_WORKSPACE }}/data/vnu_eoffice}"
   if [[ -f {{ OPENCLAW_WORKSPACE }}/secrets/vnu-eoffice/secrets.json ]]; then
     export VNU_SECRETS_FILE="${VNU_SECRETS_FILE:-{{ OPENCLAW_WORKSPACE }}/secrets/vnu-eoffice/secrets.json}"

@@ -8,7 +8,10 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-REPO_ROOT = Path(os.environ.get("VNU_EOFFICE_REPO", "{{ USER_HOME }}/vnueoffice"))
+REPO_ROOT = Path(os.environ.get(
+    "VNU_EOFFICE_REPO",
+    "{{ OPENCLAW_WORKSPACE }}/vnueoffice_repo",
+))
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
