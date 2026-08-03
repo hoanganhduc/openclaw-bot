@@ -159,6 +159,12 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("CONVERGENT", source)
         self.assertNotIn('preview = path.with_name(path.name + ".new")', source)
         self.assertIn('chmod 0600 "$auth_profiles"', source)
+        self.assertIn('-c user.name="OpenClaw Restore"', source)
+        self.assertIn('-c user.email="openclaw-restore@localhost"', source)
+        self.assertNotIn(
+            'commit -m "Initialize OpenClaw workspace rollback baseline" >/dev/null || true',
+            source,
+        )
 
     def test_owner_backup_is_link_free_and_restore_is_bounded(self) -> None:
         backup = (ROOT / "backup.sh").read_text(encoding="utf-8")

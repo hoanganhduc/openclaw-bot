@@ -328,7 +328,10 @@ node_modules/
 EOF
     git -C "$WORKSPACE" init >/dev/null
     git -C "$WORKSPACE" add .gitignore >/dev/null
-    git -C "$WORKSPACE" commit -m "Initialize OpenClaw workspace rollback baseline" >/dev/null || true
+    git -C "$WORKSPACE" \
+      -c user.name="OpenClaw Restore" \
+      -c user.email="openclaw-restore@localhost" \
+      commit -m "Initialize OpenClaw workspace rollback baseline" >/dev/null
   fi
 fi
 
