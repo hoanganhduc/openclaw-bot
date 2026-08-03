@@ -350,6 +350,9 @@ def run_subprocess(argv: list[str], timeout: int = DEFAULT_TIMEOUT, cwd: str | N
 
 
 def find_getscipapers() -> str | None:
+    configured = os.environ.get("GETSCIPAPERS_BIN")
+    if configured and Path(configured).is_file() and os.access(configured, os.X_OK):
+        return configured
     return shutil.which("getscipapers")
 
 

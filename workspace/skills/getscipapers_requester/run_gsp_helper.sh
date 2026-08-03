@@ -6,4 +6,5 @@ for sp in "${HOME}/.local/lib"/python*/site-packages; do
   [[ -d "$sp" ]] && export PYTHONPATH="${sp}:${PYTHONPATH:-}" && break
 done
 export GETSCIPAPERS_SKILL_CONFIG="${GETSCIPAPERS_SKILL_CONFIG:-${OPENCLAW_WORKSPACE:-/workspace}/data/research/getscipapers_bot/state/config.json}"
+export GETSCIPAPERS_BIN="${GETSCIPAPERS_BIN:-$SCRIPT_DIR/run_getscipapers.sh}"
 exec python3 "$SCRIPT_DIR/gsp_openclaw_helper.py" "$@"

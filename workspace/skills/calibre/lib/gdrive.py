@@ -5,7 +5,7 @@ import os
 import io
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from googleapiclient.http import HttpRequest, MediaFileUpload, MediaIoBaseDownload
 
 
 SCOPES = [
@@ -34,7 +34,24 @@ class GDriveClient:
             raise ValueError("GDrive credentials not configured (GDRIVE_CREDENTIALS)")
 
         credentials = _load_credentials(creds_value)
-        self.service = build("drive", "v3", credentials=credentials, cache_discovery=False)
+        self.timeout_seconds = _bounded_int(
+            os.environ.get("CALIBRE_HTTP_TIMEOUT_SECONDS", "30"), 5, 120
+        )
+        self.retries = _bounded_int(
+            os.environ.get("CALIBRE_HTTP_RETRIES", "2"), 0, 5
+        )
+
+        def request_builder(http, *args, **kwargs):
+            http.timeout = self.timeout_seconds
+            return HttpRequest(http, *args, **kwargs)
+
+        self.service = build(
+            "drive",
+            "v3",
+            credentials=credentials,
+            cache_discovery=False,
+            requestBuilder=request_builder,
+        )
         self._folder_cache = None
 
     def _get_service(self):
@@ -59,12 +76,29 @@ class GDriveClient:
                 q=q,
                 fields="files(id, name, mimeType, webViewLink)",
                 pageSize=max_results,
-            ).execute()
+            ).execute(num_retries=self.retries)
             results.extend(resp.get("files", []))
             if len(results) >= max_results:
                 break
 
         return results[:max_results]
+
+    def find_root_file(self, filename):
+        """Find one exact filename directly under the configured root folder."""
+        q = (
+            f"'{self.folder_id}' in parents "
+            f"and name = '{_escape(filename)}' "
+            "and trashed = false"
+        )
+        response = self.service.files().list(
+            q=q,
+            fields="files(id, name, mimeType, webViewLink, modifiedTime, size)",
+            pageSize=2,
+        ).execute(num_retries=self.retries)
+        files = response.get("files", [])
+        if len(files) > 1:
+            raise RuntimeError(f"multiple root-level {filename} files found")
+        return files[0] if files else None
 
     def create_share_link(self, file_id):
         """Create a share link for a file.
@@ -77,11 +111,11 @@ class GDriveClient:
                 fileId=file_id,
                 body={"type": "anyone", "role": "reader"},
                 fields="id",
-            ).execute()
+            ).execute(num_retries=self.retries)
 
         file_meta = self.service.files().get(
             fileId=file_id, fields="webViewLink"
-        ).execute()
+        ).execute(num_retries=self.retries)
         return file_meta.get("webViewLink", "")
 
     def check_connection(self):
@@ -89,20 +123,30 @@ class GDriveClient:
         try:
             resp = self.service.files().get(
                 fileId=self.folder_id, fields="id, name"
-            ).execute()
+            ).execute(num_retries=self.retries)
             return bool(resp.get("id"))
         except Exception:
             return False
 
-    def download_file(self, file_id, local_path):
+    def download_file(self, file_id, local_path, max_bytes=None, progress_callback=None):
         """Download a Drive file to local_path."""
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         request = self.service.files().get_media(fileId=file_id)
         with open(local_path, "wb") as fh:
-            downloader = MediaIoBaseDownload(fh, request)
+            downloader = MediaIoBaseDownload(fh, request, chunksize=1024 * 1024)
             done = False
             while not done:
-                _, done = downloader.next_chunk()
+                status, done = downloader.next_chunk(num_retries=self.retries)
+                downloaded = fh.tell()
+                if max_bytes is not None and downloaded > max_bytes:
+                    raise RuntimeError("Drive download exceeded configured size limit")
+                if progress_callback and status:
+                    progress_callback(
+                        downloaded,
+                        getattr(status, "total_size", None),
+                        status.progress(),
+                        done,
+                    )
 
     def upload_file(self, local_path, filename, parent_folder_id):
         """Upload a local file to Drive. Returns file ID."""
@@ -113,7 +157,7 @@ class GDriveClient:
         media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
         created = self.service.files().create(
             body=file_metadata, media_body=media, fields="id"
-        ).execute()
+        ).execute(num_retries=self.retries)
         return created["id"]
 
     def update_file(self, file_id, local_path):
@@ -124,7 +168,7 @@ class GDriveClient:
         media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
         updated = self.service.files().update(
             fileId=file_id, media_body=media, fields="id"
-        ).execute()
+        ).execute(num_retries=self.retries)
         return updated["id"]
 
     def _get_folder_tree(self):
@@ -140,7 +184,7 @@ class GDriveClient:
             q = f"'{parent}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
             resp = self.service.files().list(
                 q=q, fields="files(id)", pageSize=100
-            ).execute()
+            ).execute(num_retries=self.retries)
             for f in resp.get("files", []):
                 folder_ids.append(f["id"])
                 queue.append(f["id"])
@@ -176,3 +220,10 @@ def _load_credentials(creds_value):
 def _escape(s):
     """Escape single quotes for GDrive query."""
     return s.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _bounded_int(value, minimum, maximum):
+    parsed = int(value)
+    if not minimum <= parsed <= maximum:
+        raise ValueError(f"integer must be between {minimum} and {maximum}")
+    return parsed

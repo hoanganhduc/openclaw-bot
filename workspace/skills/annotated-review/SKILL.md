@@ -1,3 +1,10 @@
+---
+name: annotated-review
+description: Use only when the user explicitly requests both annotation and review for a paper task. Produces annotated review outputs and supports an explicit add-to-Zotero step when requested.
+metadata:
+  short-description: Annotate and review papers
+---
+
 # annotated-review
 
 Produces three synchronized, fully verified outputs from a paper (LaTeX source or PDF):

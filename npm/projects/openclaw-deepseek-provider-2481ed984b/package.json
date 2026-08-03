@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "@openclaw/deepseek-provider": "2026.7.1"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "@openclaw/zai-provider": "2026.7.1"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@openclaw/googlechat": "2026.6.6"
+    "@openclaw/googlechat": "2026.7.1"
   },
   "openclaw": {
     "managedOverrides": [

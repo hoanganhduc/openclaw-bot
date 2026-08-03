@@ -1,3 +1,10 @@
+---
+name: calibre
+description: Use when the user wants to search, retrieve, send, add, update, sync, export, convert, or clean books from the managed Calibre library runtime.
+metadata:
+  short-description: Calibre library management
+---
+
 # Calibre Library Manager Skill
 
 Manages a Calibre ebook library stored on Google Drive. Reads and writes

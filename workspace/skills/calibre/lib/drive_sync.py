@@ -22,6 +22,7 @@ import json
 import time
 import fcntl
 import shutil
+import sqlite3
 import subprocess
 from contextlib import contextmanager
 
@@ -52,7 +53,7 @@ class DriveSync:
     # DB pull / push
     # ------------------------------------------------------------------ #
 
-    def pull_db(self, force=False):
+    def pull_db(self, force=False, progress_callback=None):
         """Download metadata.db from Drive to local cache path.
 
         Returns True if downloaded, False if already up-to-date (not forced).
@@ -60,11 +61,9 @@ class DriveSync:
         client = self._get_client()
         os.makedirs(os.path.dirname(self.db_local), exist_ok=True)
 
-        # Find metadata.db in the library root folder
-        files = client.search("metadata.db", max_results=5)
-        db_file = next(
-            (f for f in files if f["name"] == "metadata.db"), None
-        )
+        # One bounded lookup in the configured library root. Recursive tree
+        # crawling made restoration unbounded and could hang on large Drives.
+        db_file = client.find_root_file("metadata.db")
         if not db_file:
             raise FileNotFoundError(
                 f"metadata.db not found in Drive folder {self.folder_id}. "
@@ -81,13 +80,48 @@ class DriveSync:
                 return False  # already current
 
         # Download
-        tmp_path = self.db_local + ".tmp"
-        client.download_file(db_file["id"], tmp_path)
-        os.replace(tmp_path, self.db_local)
+        max_bytes = int(os.environ.get("CALIBRE_MAX_DB_BYTES", str(256 * 1024 * 1024)))
+        if not 1024 * 1024 <= max_bytes <= 2 * 1024 * 1024 * 1024:
+            raise ValueError("CALIBRE_MAX_DB_BYTES must be between 1 MiB and 2 GiB")
+        declared_size = int(db_file.get("size") or 0)
+        if declared_size <= 0 or declared_size > max_bytes:
+            raise RuntimeError("Drive metadata.db size is absent or exceeds the configured limit")
+        tmp_path = self.db_local + f".tmp-{os.getpid()}"
+        try:
+            client.download_file(
+                db_file["id"],
+                tmp_path,
+                max_bytes=max_bytes,
+                progress_callback=progress_callback,
+            )
+            if os.path.getsize(tmp_path) != declared_size:
+                raise RuntimeError("downloaded metadata.db size differs from Drive metadata")
+            connection = sqlite3.connect(f"file:{tmp_path}?mode=ro", uri=True)
+            try:
+                result = connection.execute("PRAGMA quick_check").fetchone()
+                if result != ("ok",):
+                    raise RuntimeError("downloaded metadata.db failed SQLite quick_check")
+                connection.execute("SELECT 1 FROM books LIMIT 1").fetchone()
+            finally:
+                connection.close()
+            os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, self.db_local)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
         # Cache mtime
-        with open(mtime_cache, "w") as f:
-            f.write(drive_mtime)
+        mtime_tmp = mtime_cache + f".tmp-{os.getpid()}"
+        try:
+            with open(mtime_tmp, "w", encoding="utf-8") as f:
+                f.write(drive_mtime)
+                f.flush()
+                os.fsync(f.fileno())
+            os.chmod(mtime_tmp, 0o600)
+            os.replace(mtime_tmp, mtime_cache)
+        finally:
+            if os.path.exists(mtime_tmp):
+                os.remove(mtime_tmp)
 
         return True
 

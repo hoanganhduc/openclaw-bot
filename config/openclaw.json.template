@@ -12,7 +12,6 @@
       "model": {
         "fallbacks": [
           "openrouter/auto",
-          "groq/{{ MODEL_ID }}",
           "{{ MODEL_ID }}",
           "openrouter/{{ MODEL_ID }}",
           "{{ MODEL_ID }}",
@@ -73,8 +72,12 @@
           "extraHosts": [
             "host.docker.internal:host-gateway"
           ],
-          "image": "ghcr.io/hoanganhduc/openclaw-sandbox:latest",
+          "image": "ghcr.io/hoanganhduc/coding-system-rebuild-openclaw-sandbox@sha256:f868c49205a1bad3edfbb6a92e1b184f0ab9f7bfe66d11a939d611f081a1f030",
           "network": "bridge",
+          "pidsLimit": 512,
+          "memory": "4g",
+          "memorySwap": "4g",
+          "cpus": 2,
           "readOnlyRoot": true,
           "tmpfs": [
             "/tmp",
@@ -149,7 +152,11 @@
             "extraHosts": [
               "host.docker.internal:host-gateway"
             ],
-            "image": "ghcr.io/hoanganhduc/openclaw-sandbox:latest",
+            "image": "ghcr.io/hoanganhduc/coding-system-rebuild-openclaw-sandbox@sha256:f868c49205a1bad3edfbb6a92e1b184f0ab9f7bfe66d11a939d611f081a1f030",
+            "pidsLimit": 512,
+            "memory": "4g",
+            "memorySwap": "4g",
+            "cpus": 2,
             "network": "bridge",
             "readOnlyRoot": true,
             "tmpfs": [
@@ -317,7 +324,7 @@
     "profiles": "{{ REDACTED }}"
   },
   "browser": {
-    "defaultProfile": "default",
+    "defaultProfile": "openclaw",
     "enabled": true,
     "noSandbox": false,
     "profiles": {
@@ -467,8 +474,8 @@
     }
   },
   "meta": {
-    "lastTouchedAt": "2026-06-15T03:04:37.847Z",
-    "lastTouchedVersion": "2026.6.6"
+    "lastTouchedAt": "2026-08-03T10:54:13.782Z",
+    "lastTouchedVersion": "2026.7.1-2"
   },
   "models": {
     "mode": "merge",
@@ -989,11 +996,13 @@
     },
     "deny": [],
     "elevated": {
-      "enabled": true
+      "enabled": false
     },
     "exec": {
-      "ask": "off",
-      "security": "full"
+      "ask": "on-miss",
+      "host": "sandbox",
+      "security": "allowlist",
+      "strictInlineEval": true
     },
     "fs": {
       "workspaceOnly": true

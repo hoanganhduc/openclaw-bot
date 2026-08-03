@@ -91,11 +91,60 @@ if [[ -n "${OPENCLAW_BACKUP_PASSPHRASE_FILE:-}" ]]; then
   GPG_PASS_OPTS=(--batch --pinentry-mode loopback --passphrase-file "$OPENCLAW_BACKUP_PASSPHRASE_FILE")
 fi
 
-tar -C "$PREFIX" -czf - "${existing[@]}" | gpg "${GPG_PASS_OPTS[@]}" --symmetric --cipher-algo AES256 -o "$ARCHIVE"
+# Owner archives are deliberately link-free. Runtime-generated absolute links
+# and dependency-tree links are reconstructed by the installer, while regular
+# files are stored independently even when they share an inode.
+(
+  cd "$PREFIX"
+  for item in "${existing[@]}"; do
+    find -P "$item" \( -type d -o -type f \) -print0
+  done
+) | tar -C "$PREFIX" --null --verbatim-files-from --no-recursion \
+      --hard-dereference -czf - -T - \
+    | gpg "${GPG_PASS_OPTS[@]}" --symmetric --cipher-algo AES256 -o "$ARCHIVE"
 chmod 600 "$ARCHIVE"
 echo "wrote encrypted archive: $ARCHIVE"
 
 if [[ "$VERIFY" -eq 1 ]]; then
-  gpg "${GPG_PASS_OPTS[@]}" --decrypt "$ARCHIVE" 2>/dev/null | tar -tzf - >/dev/null
+  VERIFY_TMP="$(mktemp "${TMPDIR:-/tmp}/openclaw-backup-verify.XXXXXX.tar.gz")"
+  trap 'rm -f -- "$VERIFY_TMP"' EXIT
+  chmod 600 "$VERIFY_TMP"
+  gpg "${GPG_PASS_OPTS[@]}" --decrypt "$ARCHIVE" > "$VERIFY_TMP" 2>/dev/null
+  python3 - "$VERIFY_TMP" <<'PY'
+import sys
+import tarfile
+from pathlib import PurePosixPath
+
+allowed = {
+    "openclaw.json", "secrets.json", ".env", ".stignore", "credentials",
+    "identity", "cron", "plugins", "extensions", "hooks", "skills",
+    "workspace", "media", "agents", "memory", "logs", "browser", "tasks",
+    "flows", "workspace-host", "workspace-moltbook", "workspace-review",
+    "workspace-sanitizer", "workspace-moltbook-reviewer",
+}
+count = 0
+size = 0
+with tarfile.open(sys.argv[1], "r:gz") as archive:
+    for member in archive:
+        count += 1
+        path = PurePosixPath(member.name)
+        if (
+            count > 1_000_000
+            or not member.name
+            or path.is_absolute()
+            or ".." in path.parts
+            or path.parts[0] not in allowed
+            or member.islnk()
+            or member.issym()
+            or not (member.isfile() or member.isdir())
+        ):
+            raise SystemExit(f"unsafe owner archive member: {member.name!r}")
+        if member.isfile():
+            size += member.size
+            if size > 20 * 1024 * 1024 * 1024:
+                raise SystemExit("owner archive expands beyond 20 GiB")
+PY
+  rm -f -- "$VERIFY_TMP"
+  trap - EXIT
   echo "verify: ok"
 fi

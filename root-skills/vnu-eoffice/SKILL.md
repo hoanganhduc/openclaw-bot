@@ -1,6 +1,6 @@
 ---
 name: vnu-eoffice
-description: Use VNU eOffice from OpenClaw: monitor updates, list latest documents, search documents, download attachments, and send requested files through Telegram.
+description: "Use VNU eOffice from OpenClaw: monitor updates, list latest documents, search documents, download attachments, and send requested files through Telegram."
 user-invocable: true
 disable-model-invocation: false
 metadata: {"openclaw":{"requires":{"bins":["python3","openclaw"]}}}

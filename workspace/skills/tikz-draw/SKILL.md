@@ -214,10 +214,10 @@ On Windows, use:
 
 Read these when the task needs tighter guardrails:
 
-- [backend-routing.md](<HOME>/.codex/skills/tikz-draw/references/backend-routing.md)
-- [quality-gates.md](<HOME>/.codex/skills/tikz-draw/references/quality-gates.md)
-- [tikz-prevention.md](<HOME>/.codex/skills/tikz-draw/references/tikz-prevention.md)
-- [tikz-measurement.md](<HOME>/.codex/skills/tikz-draw/references/tikz-measurement.md)
+- [backend-routing.md](references/backend-routing.md)
+- [quality-gates.md](references/quality-gates.md)
+- [tikz-prevention.md](references/tikz-prevention.md)
+- [tikz-measurement.md](references/tikz-measurement.md)
 
 ## Boundaries
 

@@ -13,15 +13,15 @@ else
   WORKSPACE="/workspace"
 fi
 
-# Install deps to workspace-local site-packages (persisted across sessions)
+# Dependencies are restored by the closure installer or baked into the sandbox.
+# The skill must never mutate its environment or hide a failed install at runtime.
 PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 SITE_PACKAGES="$WORKSPACE/.local/lib/python${PY_VER}/site-packages"
-if [[ ! -d "$SITE_PACKAGES/googleapiclient" ]]; then
-  pip install -q --target="$SITE_PACKAGES" -r "$SKILL_DIR/requirements.txt" 2>/dev/null || true
-fi
-
-export PYTHONPATH="$SITE_PACKAGES:$SKILL_DIR:${PYTHONPATH:-}"
+export PYTHONPATH="$WORKSPACE/.local:$SITE_PACKAGES:$SKILL_DIR:${PYTHONPATH:-}"
 export OPENCLAW_WORKSPACE="$WORKSPACE"
 export OPENCLAW_SECRETS_FILE="${OPENCLAW_SECRETS_FILE:-$WORKSPACE/.secrets.json}"
+
+python3 -c 'import googleapiclient, google.auth, ebooklib, requests' >/dev/null \
+  || { echo '{"status":"error","message":"Calibre Python dependency closure is unavailable"}' >&2; exit 2; }
 
 exec python3 "$SKILL_DIR/cal.py" "$@"
