@@ -334,6 +334,17 @@ EOF
       -c user.email="openclaw-restore@localhost" \
       commit -m "Initialize OpenClaw workspace rollback baseline" >/dev/null
   fi
+  if [[ -d "$WORKSPACE/.git" && ! -L "$WORKSPACE/.git" ]]; then
+    workspace_exclude="$WORKSPACE/.git/info/exclude"
+    mkdir -p "$(dirname "$workspace_exclude")"
+    [[ ! -L "$workspace_exclude" ]] || {
+      echo "unsafe workspace Git exclude file: $workspace_exclude" >&2
+      exit 2
+    }
+    touch "$workspace_exclude"
+    grep -Fqx '.python-closure/' "$workspace_exclude" \
+      || printf '%s\n' '.python-closure/' >> "$workspace_exclude"
+  fi
 fi
 
 if [[ "$SKIP_DOCKER" -eq 0 ]]; then

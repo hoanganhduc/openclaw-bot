@@ -119,6 +119,28 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn('ENTRYPOINT="/usr/local/bin/getscipapers"', root_launcher)
         self.assertIn("python-closure/getscipapers", root_launcher)
 
+    def test_docling_and_lean_explore_use_prebuilt_closures(self) -> None:
+        docling = (
+            ROOT / "workspace/skills/docling/run_docling.sh"
+        ).read_text(encoding="utf-8")
+        lean = (
+            ROOT / "workspace/skills/lean-explore-cli/run_lean_explore.sh"
+        ).read_text(encoding="utf-8")
+        for source, environment in (
+            (docling, "docling-cpu"),
+            (lean, "lean-explore"),
+        ):
+            with self.subTest(environment=environment):
+                self.assertIn(
+                    f"/opt/coding-system/python-closure/{environment}", source
+                )
+                self.assertIn(
+                    f".local/share/coding-system/python-closure/{environment}",
+                    source,
+                )
+                self.assertIn('"$HOME" == "/workspace"', source)
+                self.assertNotRegex(source, r"pip\s+install|python3\s+-m\s+venv")
+
     def test_workspace_python_closure_is_not_captured_as_source(self) -> None:
         manifest = json.loads((ROOT / "REBUILD-MANIFEST.json").read_text(encoding="utf-8"))
         workspace = next(
@@ -129,6 +151,7 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn(".python-closure/**", workspace["exclude"])
         install = (ROOT / "install.sh").read_text(encoding="utf-8")
         self.assertIn(".python-closure/", install)
+        self.assertIn('workspace_exclude="$WORKSPACE/.git/info/exclude"', install)
 
     def test_openclaw_and_plugin_versions_are_one_locked_generation(self) -> None:
         manifest = json.loads((ROOT / "REBUILD-MANIFEST.json").read_text(encoding="utf-8"))

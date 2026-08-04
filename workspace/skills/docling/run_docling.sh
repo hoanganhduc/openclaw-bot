@@ -1,29 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$0")" && pwd)"
-
-resolve_venv() {
-  local candidates=()
-  if [[ -n "${DOCLING_VENV:-}" ]]; then
-    candidates+=("${DOCLING_VENV}")
-  fi
-  candidates+=("${HOME}/.local/share/docling-venv")
-  for candidate in "${candidates[@]}"; do
-    if [[ -x "${candidate}/bin/python3" ]]; then
-      echo "${candidate}"
-      return 0
-    fi
-  done
-  return 1
-}
-
-VENV="$(resolve_venv || true)"
-if [[ -z "$VENV" ]]; then
-  echo "docling venv python not found; set DOCLING_VENV or install at ~/.local/share/docling-venv" >&2
+WORKSPACE="${OPENCLAW_WORKSPACE:-${HOME}/.openclaw/workspace}"
+if [[ "$HOME" == "/workspace" && "$WORKSPACE" == "/workspace" ]]; then
+  VENV="/opt/coding-system/python-closure/docling-cpu"
+  RUNTIME_LABEL="locked OpenClaw sandbox image"
+else
+  VENV="${DOCLING_VENV:-${HOME}/.local/share/coding-system/python-closure/docling-cpu}"
+  RUNTIME_LABEL="host Python closure"
+fi
+PYTHON_BIN="$VENV/bin/python"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  echo "docling runtime missing from the $RUNTIME_LABEL: $VENV" >&2
   exit 1
 fi
-
-PYTHON_BIN="$VENV/bin/python3"
 export PATH="$VENV/bin:${PATH}"
 
 cmd="${1:-}"

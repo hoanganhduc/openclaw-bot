@@ -24,7 +24,10 @@ exec: /workspace/skills/lean-explore-cli/run_lean_explore.sh search "<query>" [-
 
 Output is a single JSON object (results with declaration name, type, docstring, source link, etc.).
 
-The first call bootstraps a workspace-local Python venv (~30s, one time). The API key is read from the workspace secrets file; no key value is ever printed.
+The runtime is supplied by the digest-locked sandbox image (or by the restored
+host Python closure when invoked outside the sandbox). The launcher never
+installs packages on use. The API key is read from the workspace secrets file;
+no key value is ever printed.
 
 ## Examples
 
