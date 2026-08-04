@@ -119,6 +119,17 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn('ENTRYPOINT="/usr/local/bin/getscipapers"', root_launcher)
         self.assertIn("python-closure/getscipapers", root_launcher)
 
+    def test_workspace_python_closure_is_not_captured_as_source(self) -> None:
+        manifest = json.loads((ROOT / "REBUILD-MANIFEST.json").read_text(encoding="utf-8"))
+        workspace = next(
+            item
+            for item in manifest["classifications"]
+            if item.get("source") == "workspace" and item.get("dest") == "workspace"
+        )
+        self.assertIn(".python-closure/**", workspace["exclude"])
+        install = (ROOT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn(".python-closure/", install)
+
     def test_openclaw_and_plugin_versions_are_one_locked_generation(self) -> None:
         manifest = json.loads((ROOT / "REBUILD-MANIFEST.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["openclaw"]["observed_version"], "2026.7.1-2")

@@ -324,6 +324,7 @@ _control/
 __pycache__/
 .venv/
 .local/
+.python-closure/
 node_modules/
 EOF
     git -C "$WORKSPACE" init >/dev/null

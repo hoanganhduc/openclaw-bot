@@ -1,6 +1,6 @@
 {
   "schema": "openclaw.rebuild-manifest.v1",
-  "updated": "2026-08-03",
+  "updated": "2026-08-04",
   "description": "Allowlist-first manifest for rebuilding OpenClaw core/settings/skills/runtime scripts without public research data or secret values.",
   "openclaw": {
     "observed_version": "2026.7.1-2",
@@ -190,6 +190,7 @@
         "skills/rss-news-digest/.venv",
         ".git/**",
         ".local/**",
+        ".python-closure/**",
         ".pylibs/**",
         ".config/**",
         ".research-compute/**",
