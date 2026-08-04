@@ -206,6 +206,10 @@ class RuntimeContractTests(unittest.TestCase):
             source,
         )
 
+    def test_installer_strips_group_and_world_write_from_managed_files(self) -> None:
+        source = (ROOT / "install.sh").read_text(encoding="utf-8")
+        self.assertGreaterEqual(source.count("& ~0o022"), 2)
+
     def test_owner_backup_is_link_free_and_restore_is_bounded(self) -> None:
         backup = (ROOT / "backup.sh").read_text(encoding="utf-8")
         restore = (ROOT / "restore.sh").read_text(encoding="utf-8")

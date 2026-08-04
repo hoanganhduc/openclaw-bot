@@ -163,13 +163,16 @@ if src.is_dir():
             rel = p.relative_to(src)
             out = dest / rel
             out.parent.mkdir(parents=True, exist_ok=True)
-            mode = stat.S_IMODE(p.stat().st_mode)
+            # Git records executable intent, not group/world write bits. A
+            # cooperative checkout umask may therefore materialize 0775/0664;
+            # never carry those write permissions into runnable managed files.
+            mode = stat.S_IMODE(p.stat().st_mode) & ~0o022
             if is_text(p):
                 write_text_preserving(out, render_text(p.read_text(encoding="utf-8")), mode)
             else:
                 copy_preserving(p, out, mode)
 else:
-    mode = stat.S_IMODE(src.stat().st_mode)
+    mode = stat.S_IMODE(src.stat().st_mode) & ~0o022
     if is_text(src):
         write_text_preserving(dest, render_text(src.read_text(encoding="utf-8")), mode)
     else:
