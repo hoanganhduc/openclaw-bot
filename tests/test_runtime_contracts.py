@@ -109,9 +109,15 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("run_getscipapers.sh", runner)
         self.assertTrue(launcher.is_file())
         launcher_source = launcher.read_text(encoding="utf-8")
-        self.assertIn(".local/venv_getscipapers", launcher_source)
+        self.assertIn('ENTRYPOINT="/usr/local/bin/getscipapers"', launcher_source)
+        self.assertIn("python-closure/getscipapers", launcher_source)
         self.assertIn('PYTHON="$VENV/bin/python"', launcher_source)
         self.assertIn('ENTRYPOINT="$VENV/bin/getscipapers"', launcher_source)
+        root_launcher = (
+            ROOT / "root-skills/getscipapers_requester/run_getscipapers.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('ENTRYPOINT="/usr/local/bin/getscipapers"', root_launcher)
+        self.assertIn("python-closure/getscipapers", root_launcher)
 
     def test_openclaw_and_plugin_versions_are_one_locked_generation(self) -> None:
         manifest = json.loads((ROOT / "REBUILD-MANIFEST.json").read_text(encoding="utf-8"))
