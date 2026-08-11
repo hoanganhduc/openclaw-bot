@@ -1,7 +1,7 @@
 """Tests for lib/metadata.py — input auto-detection and normalization."""
 
 import pytest
-from lib.metadata import detect_input_type
+from zotero_test_lib.metadata import detect_input_type
 
 
 class TestDetectInputType:

@@ -26,8 +26,9 @@ Output is a single JSON object (results with declaration name, type, docstring, 
 
 The runtime is supplied by the digest-locked sandbox image (or by the restored
 host Python closure when invoked outside the sandbox). The launcher never
-installs packages on use. The API key is read from the workspace secrets file;
-no key value is ever printed.
+installs packages on use. `LEANEXPLORE_API_KEY` is restored through the fixed
+private authority `~/.config/ai-agents-skills/lean-explore.env`; the launcher does not expose a shared
+JSON secret-file selector to the child process. No key value is ever printed.
 
 ## Examples
 

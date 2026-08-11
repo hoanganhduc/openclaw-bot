@@ -39,12 +39,11 @@ class DriveSync:
     def _get_client(self):
         if self._client is None:
             from .gdrive import GDriveClient
-            creds = self.config.get("GDRIVE_CREDENTIALS") or \
-                    self.config.get("gdrive_credentials_file")
+            creds = self.config.get("GDRIVE_CREDENTIALS")
             if not creds:
                 raise RuntimeError(
                     "GDRIVE_CREDENTIALS not set. "
-                    "Add to secrets file or config.json."
+                    "Use the dedicated Calibre secret projection."
                 )
             self._client = GDriveClient(creds, self.folder_id)
         return self._client

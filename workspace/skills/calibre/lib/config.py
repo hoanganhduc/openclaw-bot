@@ -1,6 +1,7 @@
-"""Configuration loader for Calibre skill.
+"""Configuration loader for the Calibre skill.
 
-Priority: environment variables > secrets.json > config.json > defaults.
+Credential values are projected into the environment by ``run_cal.sh``.  This
+module deliberately has no secret-file discovery or shared-authority fallback.
 """
 
 import os
@@ -12,7 +13,6 @@ SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULTS = {
     "gdrive_folder_id": "",
-    "gdrive_credentials_file": "",
     "staging_dir": os.path.join(WORKSPACE, "data", "calibre", "staging"),
     "cache_path": os.path.join(WORKSPACE, "data", "calibre", "cache", "library.json"),
     "db_local_path": os.path.join(WORKSPACE, "data", "calibre", "cache", "metadata.db"),
@@ -21,7 +21,9 @@ DEFAULTS = {
     "isbn_lookup_url": "https://openlibrary.org/api/books",
     "preferred_format": "epub",
     "max_search_results": 25,
+    "gdrive_share_permission": "anyone_with_link",
 }
+PUBLIC_CONFIG_KEYS = frozenset(DEFAULTS)
 
 
 def load_config(require=None):
@@ -30,23 +32,14 @@ def load_config(require=None):
     # Load config.json from skill dir
     cfg_path = os.path.join(SKILL_DIR, "config.json")
     if os.path.exists(cfg_path):
-        with open(cfg_path) as f:
-            config.update(json.load(f))
-
-    # Load secrets file
-    secrets_file = os.environ.get(
-        "OPENCLAW_SECRETS_FILE",
-        os.path.join(WORKSPACE, ".secrets.json"),
-    )
-    if os.path.exists(secrets_file):
-        with open(secrets_file) as f:
-            secrets = json.load(f)
-        for key in ("GDRIVE_CREDENTIALS",):
-            if key in secrets:
-                config[key] = secrets[key]
-        # Allow CALIBRE_GDRIVE_FOLDER_ID override in secrets
-        if "CALIBRE_GDRIVE_FOLDER_ID" in secrets:
-            config["gdrive_folder_id"] = secrets["CALIBRE_GDRIVE_FOLDER_ID"]
+        with open(cfg_path, encoding="utf-8") as stream:
+            public_config = json.load(stream)
+        if not isinstance(public_config, dict):
+            raise ValueError("Calibre config.json must contain an object")
+        unexpected = set(public_config) - PUBLIC_CONFIG_KEYS
+        if unexpected:
+            raise ValueError("Calibre config.json contains unsupported keys")
+        config.update(public_config)
 
     # Environment variable overrides
     for env_key, cfg_key in [
@@ -57,6 +50,11 @@ def load_config(require=None):
         val = os.environ.get(env_key)
         if val:
             config[cfg_key] = val
+
+    # Credentials are now held only in ``config``. Helper subprocesses must
+    # never inherit the projected authority through the ambient environment.
+    os.environ.pop("GDRIVE_CREDENTIALS", None)
+    os.environ.pop("CALIBRE_GDRIVE_FOLDER_ID", None)
 
     # Ensure directories exist
     os.makedirs(config["staging_dir"], exist_ok=True)
@@ -69,7 +67,8 @@ def load_config(require=None):
             print(json.dumps({
                 "status": "error",
                 "message": f"Missing required config: {', '.join(missing)}. "
-                           f"Set in skills/calibre/config.json or secrets file.",
+                           f"Set public values in config.json and credentials "
+                           f"through the dedicated Calibre projection.",
             }))
             sys.exit(1)
 

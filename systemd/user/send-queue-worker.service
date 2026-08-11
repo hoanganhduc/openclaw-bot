@@ -1,14 +1,60 @@
 [Unit]
-Description=OpenClaw Job Queue Worker (file send + SageMath + Manim render + signed email)
-After=openclaw-gateway.service
+Description=OpenClaw Telegram-only approved file-delivery queue worker
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart={{ OPENCLAW_WORKSPACE }}/scripts/job_queue_worker.sh
-Environment=PATH={{ USER_HOME }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+RuntimeDirectory=openclaw-bot-send-worker
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact owner_state_lock.py -- --mode shared --lock-path {{ OWNER_STATE_LOCK }} -- /usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact job_queue_worker.sh
+Environment=PATH=/usr/bin:/bin
+Environment=TMPDIR=%t/openclaw-bot-send-worker
 Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Environment=OPENCLAW_LIBEXEC={{ OPENCLAW_LIBEXEC }}
+Environment=OPENCLAW_QUEUE_KIND=send
+Environment=OPENCLAW_DELIVERY_CHANNEL=telegram
+Environment=OPENCLAW_DELIVERY_POLICY=%d/file-delivery-policy
+Environment=OPENCLAW_TELEGRAM_CREDENTIAL=%d/telegram-token
+Environment=OPENCLAW_EXPECTED_OWNER_STATE_LOCK={{ OWNER_STATE_LOCK }}
+LoadCredential=file-delivery-policy:{{ OPENCLAW_HOME }}/file-delivery-policy.json
+LoadCredential=telegram-token:{{ USER_HOME }}/.local/state/openclaw-bot/delivery-authorities/telegram/token
 Restart=on-failure
 RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=1G
+MemorySwapMax=256M
+TasksMax=128
+CPUQuota=100%
+LimitNOFILE=1024
+LimitFSIZE=2G
+BindReadOnlyPaths={{ OPENCLAW_LIBEXEC_ROOT }}
+BindPaths={{ OWNER_STATE_LOCK }}
+BindPaths={{ OPENCLAW_WORKSPACE }}/data/send-queue/telegram
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/research/zotero/staging
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/calibre/staging
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/vnu_eoffice/documents
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/exports
+BindPaths={{ USER_HOME }}/.local/state/openclaw-bot/delivery-spool
 
 [Install]
 WantedBy=default.target

@@ -94,6 +94,11 @@ The wrapper:
 - runs `calibre add ... --dry-run`
 - returns duplicate candidates and the write gate state
 
+The handoff uses the dedicated private Calibre JSON projection at
+`/workspace/.config/ai-agents-skills/calibre-secrets.json` by default. Keep
+Telegram and Zulip authorities in their separate file-delivery and Remote
+Bridge files; do not add either authority to the Calibre JSON.
+
 Write only after the dry-run and duplicate candidates have been reviewed:
 
 ```bash

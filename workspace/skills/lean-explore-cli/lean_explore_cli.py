@@ -2,9 +2,8 @@
 """Direct-CLI Lean declaration search for the OpenClaw sandboxed agent (non-MCP).
 
 OpenClaw is not an MCP client, so this wraps the lean_explore API client directly
-and prints JSON. The API key is read from LEANEXPLORE_API_KEY or, failing that,
-from the JSON secrets file named by OPENCLAW_SECRETS_FILE / AAS_SECRETS_FILE
-(key: "LEANEXPLORE_API_KEY"). The key value is never printed.
+and prints JSON. The bounded launcher projects LEANEXPLORE_API_KEY directly; no
+shared secret-file selector is exposed to this process. The key is never printed.
 """
 from __future__ import annotations
 
@@ -12,29 +11,19 @@ import argparse
 import asyncio
 import json
 import os
-from pathlib import Path
 
 
 def _load_key() -> str | None:
-    key = os.environ.get("LEANEXPLORE_API_KEY")
-    if key:
-        return key
-    for env in ("OPENCLAW_SECRETS_FILE", "AAS_SECRETS_FILE"):
-        sf = os.environ.get(env)
-        if sf and Path(sf).is_file():
-            try:
-                data = json.loads(Path(sf).read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                continue
-            if isinstance(data, dict) and data.get("LEANEXPLORE_API_KEY"):
-                return str(data["LEANEXPLORE_API_KEY"])
-    return None
+    # Keep the credential out of the ambient environment before importing the
+    # third-party client or entering its event loop. The ApiClient receives the
+    # capability explicitly and no child process can inherit it accidentally.
+    return os.environ.pop("LEANEXPLORE_API_KEY", "") or None
 
 
 def cmd_search(args: argparse.Namespace) -> int:
     key = _load_key()
     if not key:
-        print(json.dumps({"ok": False, "error": "no LEANEXPLORE_API_KEY (env or OPENCLAW_SECRETS_FILE)"}))
+        print(json.dumps({"ok": False, "error": "no LEANEXPLORE_API_KEY in the managed environment"}))
         return 1
     from lean_explore.api.client import ApiClient
 

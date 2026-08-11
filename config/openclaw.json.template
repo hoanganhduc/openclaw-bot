@@ -60,11 +60,8 @@
           "containerPrefix": "openclaw-sbx-",
           "env": {
             "GETSCIPAPERS_CACHE_DIR": "/workspace/cache/getscipapers",
-            "GETSCIPAPERS_CONFIG_DIR": "/workspace/secrets/getscipapers",
-            "GETSCIPAPERS_SKILL_CONFIG": "{{ PRIVATE_DATA_DIR }}/research/getscipapers_bot/state/config.json",
             "HOME": "/workspace",
             "LANG": "C.UTF-8",
-            "OPENCLAW_SECRETS_FILE": "{{ REDACTED }}",
             "OPENCLAW_WORKSPACE": "/workspace",
             "PIP_CACHE_DIR": "/workspace/.cache/pip",
             "XDG_CACHE_HOME": "/workspace/.cache"
@@ -108,11 +105,16 @@
         },
         "id": "main",
         "name": "main",
+        "sandbox": {
+          "docker": {
+            "env": {
+              "GETSCIPAPERS_CONFIG_DIR": "/workspace/.config/getscipapers",
+              "GETSCIPAPERS_SKILL_CONFIG": "/workspace/data/research/getscipapers_bot/state/config.json"
+            }
+          }
+        },
         "subagents": {
-          "allowAgents": [
-            "moltbook",
-            "moltbook-reviewer"
-          ]
+          "allowAgents": []
         },
         "workspace": "{{ OPENCLAW_WORKSPACE }}"
       },
@@ -123,13 +125,11 @@
         },
         "id": "host",
         "name": "host",
+        "skills": [],
         "workspace": "{{ OPENCLAW_WORKSPACE }}-host"
       },
       {
         "agentDir": "{{ OPENCLAW_HOME }}/agents/moltbook/agent",
-        "heartbeat": {
-          "every": "1d"
-        },
         "id": "moltbook",
         "model": {
           "fallbacks": [
@@ -146,18 +146,15 @@
             ],
             "containerPrefix": "openclaw-sbx-moltbook-",
             "env": {
-              "MOLTBOOK_AUTH": "{{ REDACTED }}",
               "PATH": "/workspace/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             },
-            "extraHosts": [
-              "host.docker.internal:host-gateway"
-            ],
+            "extraHosts": [],
             "image": "ghcr.io/hoanganhduc/coding-system-rebuild-openclaw-sandbox@sha256:f868c49205a1bad3edfbb6a92e1b184f0ab9f7bfe66d11a939d611f081a1f030",
             "pidsLimit": 512,
             "memory": "4g",
             "memorySwap": "4g",
             "cpus": 2,
-            "network": "bridge",
+            "network": "none",
             "readOnlyRoot": true,
             "tmpfs": [
               "/tmp",
@@ -172,8 +169,10 @@
           "workspaceAccess": "{{ REDACTED }}",
           "workspaceRoot": "{{ OPENCLAW_WORKSPACE }}-moltbook"
         },
+        "skills": [],
         "tools": {
           "deny": [
+            "group:runtime",
             "process",
             "group:sessions",
             "group:automation",
@@ -181,21 +180,16 @@
             "edit",
             "apply_patch",
             "web_search",
+            "web_fetch",
             "nodes",
             "canvas",
             "image",
             "message",
+            "exec",
             "cron",
             "sessions_spawn"
           ],
-          "profile": "full",
-          "sandbox": {
-            "tools": {
-              "alsoAllow": [
-                "web_fetch"
-              ]
-            }
-          }
+          "profile": "full"
         },
         "workspace": "{{ OPENCLAW_WORKSPACE }}-moltbook"
       },
@@ -226,6 +220,7 @@
           "scope": "agent",
           "workspaceAccess": "{{ REDACTED }}"
         },
+        "skills": [],
         "tools": {
           "deny": [
             "browser",
@@ -257,6 +252,7 @@
           "scope": "agent",
           "workspaceAccess": "{{ REDACTED }}"
         },
+        "skills": [],
         "tools": {
           "deny": [
             "group:runtime",
@@ -301,6 +297,7 @@
           "scope": "agent",
           "workspaceAccess": "{{ REDACTED }}"
         },
+        "skills": [],
         "tools": {
           "deny": [
             "browser",
@@ -327,12 +324,7 @@
     "defaultProfile": "openclaw",
     "enabled": true,
     "noSandbox": false,
-    "profiles": {
-      "moltbook": {
-        "cdpPort": 9223,
-        "color": "#8844FF"
-      }
-    },
+    "profiles": {},
     "ssrfPolicy": {
       "dangerouslyAllowPrivateNetwork": "{{ REDACTED }}"
     }
@@ -372,7 +364,7 @@
       "blockStreaming": true,
       "debounceMs": 0,
       "dmPolicy": "allowlist",
-      "enabled": true,
+      "enabled": false,
       "groupAllowFrom": [],
       "groupPolicy": "allowlist",
       "mediaMaxMb": 50,

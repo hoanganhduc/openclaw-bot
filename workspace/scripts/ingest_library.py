@@ -23,7 +23,7 @@ MEMORY_DIR = Path(WORKSPACE) / "memory"
 INGESTED_FILE = Path(WORKSPACE) / "data" / "library" / "ingested.json"
 INDEX_FILE = MEMORY_DIR / "library-index.md"
 CALIBRE_CACHE = Path(WORKSPACE) / "data" / "calibre" / "cache" / "library.json"
-ZOTERO_SKILL = Path(WORKSPACE) / "skills" / "zotero" / "zot.py"
+ZOTERO_SKILL = Path(WORKSPACE) / "skills" / "zotero" / "run_zot.sh"
 
 RESEARCH_TAGS = {
     "graph", "algorithm", "combinatorics", "complexity", "theory",
@@ -429,7 +429,7 @@ def bootstrap_mode():
     for key in sorted(cite_keys - ingested_zotero):
         try:
             result = subprocess.run(
-                [sys.executable, str(ZOTERO_SKILL), "search", key, "--json"],
+                [str(ZOTERO_SKILL), "search", key, "--json"],
                 capture_output=True, text=True, timeout=30,
                 env={**os.environ},
             )

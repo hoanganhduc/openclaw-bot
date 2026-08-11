@@ -16,7 +16,7 @@ import sys
 import time
 
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "{{ OPENCLAW_WORKSPACE }}")
-ZOT_PY = os.path.join(WORKSPACE, "skills", "zotero", "zot.py")
+ZOT_RUNNER = os.path.join(WORKSPACE, "skills", "zotero", "run_zot.sh")
 DIGEST_BRIDGE = os.path.join(WORKSPACE, "skills", "digest-bridge", "digest_bridge.py")
 
 sys.path.insert(0, os.path.join(WORKSPACE, "skills", "zotero"))
@@ -59,7 +59,7 @@ def main():
     # Get existing collections for topic matching
     try:
         coll_result = subprocess.run(
-            [sys.executable, ZOT_PY, "--json", "list-collections", "--json"],
+            [ZOT_RUNNER, "--json", "list-collections", "--json"],
             capture_output=True, text=True, timeout=30,
         )
         collections = json.loads(coll_result.stdout).get("collections", [])
@@ -84,7 +84,7 @@ def main():
             coll_args = ["--collection", "Auto-cataloged"]
             for c in matched:
                 coll_args.extend(["--collection", c])
-            cmd = [sys.executable, ZOT_PY, "add", identifier, "--no-pdf"] + coll_args
+            cmd = [ZOT_RUNNER, "add", identifier, "--no-pdf"] + coll_args
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 if r.returncode == 0:

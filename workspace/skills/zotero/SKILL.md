@@ -42,6 +42,10 @@ CHANNEL and TARGET come from the conversation metadata (sender_id field):
 - WhatsApp: `--send whatsapp <SENDER_PHONE>`
 - Google Chat: `--send googlechat <SENDER_SPACE>`
 
+The selected target must also exactly match the corresponding private
+`delivery_policy.allowed_targets` entry. Conversation text cannot authorize a
+new recipient.
+
 **Do NOT use send_file.sh separately.** Always use `--send` so that download + delivery happens in one exec call.
 
 **User asks to share a link:**
@@ -78,14 +82,14 @@ exec: /workspace/skills/zotero/run_zot.sh add --from-manifest manifest.json
 
 ### Share paper (Google Drive link)
 ```
-exec: python3 /workspace/skills/zotero/zot.py --json get --link "<query>"
+exec: /workspace/skills/zotero/run_zot.sh --json get --link "<query>"
 ```
 
 ### Search library
 ```
-exec: python3 /workspace/skills/zotero/zot.py search "<query>"
-exec: python3 /workspace/skills/zotero/zot.py search "<query>" --json
-exec: python3 /workspace/skills/zotero/zot.py search "<query>" --bibtex
+exec: /workspace/skills/zotero/run_zot.sh search "<query>"
+exec: /workspace/skills/zotero/run_zot.sh search "<query>" --json
+exec: /workspace/skills/zotero/run_zot.sh search "<query>" --bibtex
 ```
 
 ### Update existing item
@@ -97,34 +101,34 @@ exec: /workspace/skills/zotero/run_zot.sh update <key> --add-collection "X" --re
 
 ### List / create collections
 ```
-exec: python3 /workspace/skills/zotero/zot.py list-collections --tree
-exec: python3 /workspace/skills/zotero/zot.py list-collections --tree --json
-exec: python3 /workspace/skills/zotero/zot.py create-collection "<name>" --parent "<parent>"
+exec: /workspace/skills/zotero/run_zot.sh list-collections --tree
+exec: /workspace/skills/zotero/run_zot.sh list-collections --tree --json
+exec: /workspace/skills/zotero/run_zot.sh create-collection "<name>" --parent "<parent>"
 ```
 
 ### Remove from collection (item stays in library)
 ```
-exec: python3 /workspace/skills/zotero/zot.py remove-from-collection <key> --collection "<name>"
+exec: /workspace/skills/zotero/run_zot.sh remove-from-collection <key> --collection "<name>"
 ```
 
 ### Move to trash
 ```
-exec: python3 /workspace/skills/zotero/zot.py --json trash "search query"
-exec: python3 /workspace/skills/zotero/zot.py --json trash --key <key>
-exec: python3 /workspace/skills/zotero/zot.py --json trash "query" --index N
-exec: python3 /workspace/skills/zotero/zot.py --dry-run trash "query"
+exec: /workspace/skills/zotero/run_zot.sh --json trash "search query"
+exec: /workspace/skills/zotero/run_zot.sh --json trash --key <key>
+exec: /workspace/skills/zotero/run_zot.sh --json trash "query" --index N
+exec: /workspace/skills/zotero/run_zot.sh --dry-run trash "query"
 ```
 
 ### List trash / empty trash
 ```
-exec: python3 /workspace/skills/zotero/zot.py --json list-trash
-exec: python3 /workspace/skills/zotero/zot.py --dry-run empty-trash
-exec: python3 /workspace/skills/zotero/zot.py --json empty-trash
+exec: /workspace/skills/zotero/run_zot.sh --json list-trash
+exec: /workspace/skills/zotero/run_zot.sh --dry-run empty-trash
+exec: /workspace/skills/zotero/run_zot.sh --json empty-trash
 ```
 
 ### Health check
 ```
-exec: python3 /workspace/skills/zotero/zot.py doctor
+exec: /workspace/skills/zotero/run_zot.sh doctor
 ```
 
 ### Auto-catalog from digests
@@ -135,6 +139,10 @@ exec: python3 /workspace/skills/zotero/scripts/auto-catalog.py --source all --mi
 ## Sending files to the user
 
 **Always use `--send` with `zot get` to download AND send in one step.** Do NOT call `send_file.sh` separately — that two-step approach is unreliable.
+
+Delivery is fail-closed: only the dedicated Zotero/Calibre staging trees and
+`/workspace/data/exports` are eligible, and only private-policy allowlisted
+targets can receive a file.
 
 ```
 exec: /workspace/skills/zotero/run_zot.sh --json get "<query>" --send telegram <SENDER_ID>

@@ -37,7 +37,7 @@ def run_checks(config):
 
 
 def _check_gdrive_creds(config):
-    creds = config.get("GDRIVE_CREDENTIALS") or config.get("gdrive_credentials_file")
+    creds = config.get("GDRIVE_CREDENTIALS")
     if not creds:
         return {"name": "gdrive_credentials", "ok": False,
                 "message": "GDRIVE_CREDENTIALS not set in secrets file"}
@@ -65,7 +65,7 @@ def _check_gdrive_folder(config):
                 "message": "gdrive_folder_id not set in config.json"}
     try:
         from .gdrive import GDriveClient
-        creds = config.get("GDRIVE_CREDENTIALS") or config.get("gdrive_credentials_file")
+        creds = config.get("GDRIVE_CREDENTIALS")
         client = GDriveClient(creds, folder_id)
         ok = client.check_connection()
         if ok:

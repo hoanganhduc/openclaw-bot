@@ -1,7 +1,7 @@
 """Tests for rename_non_pdf in lib/renamer.py."""
 
 import pytest
-from lib.renamer import rename_non_pdf
+from zotero_test_lib.renamer import rename_non_pdf
 
 
 class TestRenameNonPdf:

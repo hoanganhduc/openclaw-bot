@@ -2,7 +2,7 @@
 
 import os
 import pytest
-from lib.verifier import verify, _is_short_form, _expected_pages, _fuzzy_match
+from zotero_test_lib.verifier import verify, _is_short_form, _expected_pages, _fuzzy_match
 
 
 class TestIsShortForm:

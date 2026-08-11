@@ -64,3 +64,10 @@ exec: /workspace/skills/research-digest-wrapper/run_research_digest.sh import-to
 
 - Topics: `{{ PRIVATE_DATA_DIR }}/research/alerts/topics.tsv`
 - Digest: `{{ PRIVATE_DATA_DIR }}/research/alerts/digests/latest-digest.md`
+
+## Optional credential
+
+`OPENCLAW_S2_API_KEY` is restored through the fixed private authority
+`~/.config/ai-agents-skills/research-digest.env`. The direct launcher projects only that explicitly
+declared key into its child process, without shell-sourcing the file or printing
+the key. The digest remains usable without this optional Semantic Scholar key.

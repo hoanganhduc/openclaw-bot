@@ -1,6 +1,6 @@
 {
-  "schema": "openclaw.rebuild-manifest.v1",
-  "updated": "2026-08-04",
+  "schema": "openclaw.rebuild-manifest.v2",
+  "updated": "2026-08-05",
   "description": "Allowlist-first manifest for rebuilding OpenClaw core/settings/skills/runtime scripts without public research data or secret values.",
   "openclaw": {
     "observed_version": "2026.7.1-2",
@@ -8,6 +8,39 @@
     "sandbox_image": "ghcr.io/hoanganhduc/coding-system-rebuild-openclaw-sandbox@sha256:f868c49205a1bad3edfbb6a92e1b184f0ab9f7bfe66d11a939d611f081a1f030",
     "sagemath_image": "sagemath/sagemath:10.8",
     "sagemath_image_arm64": "ghcr.io/hoanganhduc/sagemath:10.8"
+  },
+  "owner_archive": {
+    "schema": "openclaw.owner-archive/v5",
+    "content": "inert-owner-data-only",
+    "sqlite": "transactional-backup-only",
+    "legacy_restore": "explicit-overlay-only-nonauthority",
+    "archive_authorities": "authenticated-but-quarantined-by-default",
+    "authority_activation_confirmation": "ACTIVATE_REVIEWED_ARCHIVE_AUTHORITY",
+    "legacy_authorities": "quarantine-only-never-active-during-restore",
+    "publication": "atomic-directory-exchange-with-persistent-rollback",
+    "serialization": "exclusive-backup-restore-shared-runtime-writers",
+    "action_queue_review_confirmation": "REVIEW_QUARANTINED_ACTIONS",
+    "action_queue_replay_confirmation": "REPLAY_QUARANTINED_ACTIONS",
+    "service_install_confirmation": "INSTALL_REVIEWED_USER_SERVICES",
+    "file_delivery_policy_authority": "file-delivery-policy.json",
+    "file_delivery_policy_schema": "openclaw.file-delivery-policy/v1",
+    "file_delivery_restore_authority": "owner-archive-only",
+    "file_delivery_generic_secrets_restore": "omitted",
+    "signed_recovery_set_v2_activation": "--signed-recovery-set-v2-owner-sha256"
+  },
+  "delivery_authorities": {
+    "schema": "openclaw.delivery-projection/v1",
+    "canonical_inputs": {
+      "channel_config": "openclaw.json",
+      "channel_secrets": "secrets.json",
+      "whatsapp_session": "credentials/whatsapp/default/*.json",
+      "googlechat_service_account": "~/.config/openclaw/google-chat/*.json"
+    },
+    "projection_root": "~/.local/state/openclaw-bot/delivery-authorities/**",
+    "projection_class": "regenerated-noncanonical",
+    "projection_backup": false,
+    "remote_bridge_credentials": "excluded-never-an-input",
+    "publication": "atomic-per-channel-directory-exchange"
   },
   "classifications": [
     {
@@ -60,6 +93,13 @@
         "openclaw-gateway.service",
         "openclaw-gateway.service.d/**",
         "send-queue-worker.service",
+        "openclaw-zulip-delivery-worker.service",
+        "openclaw-googlechat-delivery-worker.service",
+        "openclaw-whatsapp-delivery-worker.service",
+        "openclaw-zalo-delivery-worker.service",
+        "openclaw-sage-worker.service",
+        "openclaw-manim-worker.service",
+        "openclaw-email-worker.service",
         "rss_news_digest_bot.service",
         "rss_news_digest_bot.timer",
         "moltbook-relay.service",
@@ -71,25 +111,6 @@
         "*~"
       ],
       "reason": "User systemd units and drop-ins needed to start OpenClaw services."
-    },
-    {
-      "base": "openclaw",
-      "source": "agents",
-      "dest": "agents",
-      "class": "public-template",
-      "mode": "tree",
-      "template": "json-or-text-redact",
-      "include": [
-        "*/agent/models.json",
-        "*/agent/auth-profiles.json"
-      ],
-      "exclude": [
-        "**/auth-state.json",
-        "**/sessions/**",
-        "**/qmd/**",
-        "**/.git/**"
-      ],
-      "reason": "Agent model/auth bootstrap shape without live auth state."
     },
     {
       "base": "openclaw",
@@ -414,22 +435,64 @@
     "secrets.json",
     ".env",
     ".stignore",
+    "file-delivery-policy.json",
     "credentials/**",
+    "devices/**",
     "identity/**",
+    "state/openclaw.sqlite",
     "cron/**",
-    "workspace/.git/**",
     "workspace/data/**",
     "workspace/memory/**",
     "workspace/reports/**",
-    "workspace/_control/**",
+    "agents/**/agent/openclaw-agent.sqlite",
+    "agents/**/agent/auth-profiles.json",
+    "agents/**/agent/auth-state.json",
+    "agents/**/agent/auth.json",
+    "agents/**/agent/auth-profiles.json.*.bak",
+    "agents/**/agent/models.json",
     "agents/**/sessions/**",
     "agents/**/qmd/**",
     "memory/**",
     "logs/**",
-    "browser/**",
     "tasks/**",
     "flows/**",
-    "media/**"
+    "media/**",
+    "workspace-host/data/**",
+    "workspace-host/memory/**",
+    "workspace-host/reports/**",
+    "workspace-moltbook/data/**",
+    "workspace-moltbook/memory/**",
+    "workspace-moltbook/reports/**",
+    "workspace-review/data/**",
+    "workspace-review/memory/**",
+    "workspace-review/reports/**",
+    "workspace-sanitizer/data/**",
+    "workspace-sanitizer/memory/**",
+    "workspace-sanitizer/reports/**",
+    "workspace-moltbook-reviewer/data/**",
+    "workspace-moltbook-reviewer/memory/**",
+    "workspace-moltbook-reviewer/reports/**"
+  ],
+  "private_archive_exclude": [
+    "plugins/**",
+    "extensions/**",
+    "hooks/**",
+    "skills/**",
+    "browser/**",
+    "workspace/.git/**",
+    "workspace/scripts/**",
+    "workspace/openclaw-scripts/**",
+    "workspace/_control/**",
+    "**/.cache/**",
+    "**/cache/**",
+    "**/caches/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "workspace/data/email-queue/**",
+    "workspace/data/job-queue/**",
+    "workspace/data/manim-queue/**",
+    "workspace/data/send-queue/**",
+    "email-approvals/**"
   ],
   "release_checks": {
     "forbidden_text": [

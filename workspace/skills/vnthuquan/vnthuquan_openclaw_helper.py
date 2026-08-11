@@ -49,6 +49,21 @@ CALIBRE_RUNNER = Path(
 CALIBRE_TIMEOUT_SECONDS = int(os.environ.get("VNTHUQUAN_CALIBRE_TIMEOUT_SECONDS", "45"))
 CALIBRE_WRITE_TIMEOUT_SECONDS = int(os.environ.get("VNTHUQUAN_CALIBRE_WRITE_TIMEOUT_SECONDS", "180"))
 DEFAULT_QUEUE_JOBS = os.environ.get("VNTHUQUAN_QUEUE_JOBS", "3")
+SAFE_CHILD_ENV = frozenset(
+    {
+        "AAS_RUNTIME_WORKSPACE",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "OPENCLAW_WORKSPACE",
+        "PATH",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "TZ",
+    }
+)
+CALIBRE_AUTHORITY_POINTERS: frozenset[str] = frozenset()
 
 
 class WrapperError(Exception):
@@ -69,10 +84,15 @@ def configure_utf8_stdio() -> None:
             pass
 
 
-def subprocess_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env.setdefault("PYTHONUTF8", "1")
-    env.setdefault("PYTHONIOENCODING", "utf-8")
+def subprocess_env(*, calibre_handoff: bool = False) -> dict[str, str]:
+    """Build a child environment without ambient credential inheritance."""
+
+    names = set(SAFE_CHILD_ENV)
+    if calibre_handoff:
+        names.update(CALIBRE_AUTHORITY_POINTERS)
+    env = {name: os.environ[name] for name in names if os.environ.get(name)}
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     return env
 
 
@@ -637,7 +657,7 @@ def run_calibre(args: list[str], *, timeout: int = CALIBRE_TIMEOUT_SECONDS) -> d
             capture_output=True,
             check=False,
             timeout=timeout,
-            env=subprocess_env(),
+            env=subprocess_env(calibre_handoff=True),
         )
     except subprocess.TimeoutExpired as exc:
         return {"ok": False, "timeout": True, "command": cmd, "stdout": exc.stdout, "stderr": exc.stderr}

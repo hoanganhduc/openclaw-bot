@@ -20,8 +20,8 @@ def _make_config():
 
 class TestWebDAVUpload:
     @responses.activate
-    def test_upload_creates_correct_zip(self):
-        from lib.webdav import WebDAVClient
+    def test_upload_creates_correct_zip(self, binary_fixtures_dir):
+        from zotero_test_lib.webdav import WebDAVClient
 
         uploaded_data = {}
 
@@ -34,7 +34,7 @@ class TestWebDAVUpload:
                                callback=capture_upload)
 
         client = WebDAVClient(_make_config())
-        pdf_path = os.path.join(FIXTURES_DIR, "valid_paper.pdf")
+        pdf_path = binary_fixtures_dir / "valid_paper.pdf"
         client.upload("TESTKEY", pdf_path, "Author_2024_Title [Journal Article].pdf")
 
         # Verify zip structure
@@ -45,26 +45,26 @@ class TestWebDAVUpload:
         assert zf.infolist()[0].compress_type == zipfile.ZIP_DEFLATED
 
     @responses.activate
-    def test_upload_failure_raises(self):
-        from lib.webdav import WebDAVClient
+    def test_upload_failure_raises(self, binary_fixtures_dir):
+        from zotero_test_lib.webdav import WebDAVClient
 
         responses.add(responses.PUT,
                       "https://example.com/dav/zotero/FAILKEY.zip",
                       status=507)  # Insufficient Storage
 
         client = WebDAVClient(_make_config())
-        pdf_path = os.path.join(FIXTURES_DIR, "valid_paper.pdf")
+        pdf_path = binary_fixtures_dir / "valid_paper.pdf"
         with pytest.raises(RuntimeError, match="507"):
             client.upload("FAILKEY", pdf_path, "test.pdf")
 
 
 class TestWebDAVDownload:
     @responses.activate
-    def test_download_extracts_pdf(self):
-        from lib.webdav import WebDAVClient
+    def test_download_extracts_pdf(self, binary_fixtures_dir):
+        from zotero_test_lib.webdav import WebDAVClient
 
         # Serve the sample zip
-        zip_data = open(os.path.join(FIXTURES_DIR, "sample_webdav.zip"), "rb").read()
+        zip_data = (binary_fixtures_dir / "sample_webdav.zip").read_bytes()
         responses.add(responses.GET,
                       "https://example.com/dav/zotero/DLKEY.zip",
                       body=zip_data, status=200)
@@ -79,7 +79,7 @@ class TestWebDAVDownload:
 
     @responses.activate
     def test_download_not_found(self):
-        from lib.webdav import WebDAVClient
+        from zotero_test_lib.webdav import WebDAVClient
 
         responses.add(responses.GET,
                       "https://example.com/dav/zotero/MISSING.zip",
@@ -95,7 +95,7 @@ class TestWebDAVDownload:
 class TestWebDAVAuth:
     @responses.activate
     def test_digest_fallback(self):
-        from lib.webdav import WebDAVClient
+        from zotero_test_lib.webdav import WebDAVClient
 
         # First request returns 401, second succeeds
         responses.add(responses.HEAD,

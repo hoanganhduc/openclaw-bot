@@ -59,6 +59,31 @@ def run_checks() -> _Checks:
     c.raises("bad_emphasis_type", lambda: SceneSpec(equations=["a"], emphases=[Emphasis(0, "nope")]).validate(), ValueError)
     c.raises("emphasis_out_of_range", lambda: SceneSpec(equations=["a"], emphases=[Emphasis(3)]).validate(), ValueError)
     c.raises("empty_equations", lambda: SceneSpec(equations=[]).validate(), ValueError)
+    c.raises(
+        "unsafe_tex_input",
+        lambda: SceneSpec(equations=[r"\input{/etc/passwd}"]).validate(),
+        ValueError,
+    )
+    c.raises(
+        "unsafe_tex_csname",
+        lambda: SceneSpec(equations=[r"\csname input\endcsname"]).validate(),
+        ValueError,
+    )
+    c.raises(
+        "oversized_scene",
+        lambda: SceneSpec(equations=["x"] * 33).validate(),
+        ValueError,
+    )
+    c.raises(
+        "excessive_fps",
+        lambda: SceneSpec(equations=["x"], fps=61).validate(),
+        ValueError,
+    )
+    c.raises(
+        "unknown_scene_key",
+        lambda: SceneSpec.from_dict({"equations": ["x"], "import": "os"}),
+        ValueError,
+    )
 
     margs = render.build_manim_args("scene.py", "GeneratedScene", "/tmp/m", "-qh", "manim")
     c.ok("manim_args_render", "render" in margs and "GeneratedScene" in margs and "--format=mp4" in margs)

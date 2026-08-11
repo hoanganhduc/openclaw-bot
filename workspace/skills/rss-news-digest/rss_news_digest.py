@@ -3,17 +3,23 @@ import argparse
 import csv
 import hashlib
 import html
+import http.client
+import ipaddress
 import json
 import os
 import re
 import shutil
+import socket
+import ssl
+import stat
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, urljoin, urlparse, urlunparse
 
 _WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", "{{ OPENCLAW_WORKSPACE }}"))
 DEFAULT_FEEDS_TSV = _WORKSPACE / "data" / "research" / "rss" / "feeds.tsv"
@@ -27,12 +33,290 @@ DEFAULT_PROFILES_BOOTSTRAP = "{\n  \"graph_theory\": [\n    \"graph\",\n    \"co
 DEFAULT_MAX_ITEMS = 25
 DEFAULT_PER_FEED_LIMIT = 12
 STATE_LIMIT = 5000
+FEED_FETCH_TIMEOUT = 10.0
+MAX_FEED_BYTES = 4 * 1024 * 1024
+MAX_FEED_REDIRECTS = 5
+MAX_RESOLVED_ADDRESSES = 4
+MAX_FEEDS_FILE_BYTES = 128 * 1024
+MAX_FEED_ROWS = 64
+MAX_FEED_URL_LENGTH = 2048
+MAX_PROFILES_FILE_BYTES = 128 * 1024
+MAX_PROFILE_COUNT = 32
+MAX_PROFILE_TERMS = 64
+MAX_PROFILE_TERM_LENGTH = 128
+MAX_STATE_FILE_BYTES = 4 * 1024 * 1024
+FEED_USER_AGENT = "openclaw-rss-news-digest/1.0"
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 KNOWN_TAGS = ["research", "events", "jobs", "general", "video"]
 TAG_RE = re.compile(r"<[^>]+>")
 SPACE_RE = re.compile(r"\s+")
 ARXIV_RE = re.compile(r'(?:abs|pdf)/(\d{4}\.\d{4,5})(?:v\d+)?')
 YT_RE = re.compile(r'(?:v=|/videos/|youtu\.be/)([A-Za-z0-9_-]{6,})')
 SE_RE = re.compile(r'/questions/(\d+)/')
+
+
+class FeedFetchError(RuntimeError):
+    """A feed URL or response failed the fail-closed network boundary."""
+
+
+class FeedDataError(RuntimeError):
+    """A mutable RSS input failed its bounded regular-file contract."""
+
+
+@dataclass(frozen=True)
+class ResolvedAddress:
+    family: int
+    socktype: int
+    protocol: int
+    sockaddr: tuple
+
+
+@dataclass(frozen=True)
+class FeedTarget:
+    url: str
+    scheme: str
+    host: str
+    port: int
+    request_target: str
+    addresses: tuple[ResolvedAddress, ...]
+
+
+@dataclass(frozen=True)
+class FeedResponse:
+    status: int
+    headers: dict[str, str]
+    body: bytes
+
+
+@dataclass(frozen=True)
+class FetchedFeed:
+    body: bytes
+    final_url: str
+    headers: dict[str, str]
+
+
+def _is_public_address(address: str) -> bool:
+    try:
+        parsed = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        return False
+    return bool(parsed.is_global and not parsed.is_multicast)
+
+
+def _literal_address(host: str, port: int):
+    try:
+        parsed = ipaddress.ip_address(host)
+    except ValueError:
+        return None
+    if parsed.version == 4:
+        return (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (host, port))
+    return (socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (host, port, 0, 0))
+
+
+def resolve_feed_target(url: str, resolver=None) -> FeedTarget:
+    """Validate an HTTP(S) URL and pin every allowed resolved socket address."""
+    if (
+        not isinstance(url, str)
+        or not url
+        or len(url) > MAX_FEED_URL_LENGTH
+        or not url.isascii()
+    ):
+        raise FeedFetchError("feed URL must be non-empty ASCII")
+    if any(ord(character) <= 0x20 or ord(character) == 0x7F for character in url):
+        raise FeedFetchError("feed URL contains forbidden whitespace or control characters")
+    try:
+        parsed = urlparse(url)
+        scheme = parsed.scheme.lower()
+        host = parsed.hostname
+        port = parsed.port
+        username = parsed.username
+        password = parsed.password
+    except ValueError as exc:
+        raise FeedFetchError("feed URL is malformed") from exc
+    if scheme not in {"http", "https"}:
+        raise FeedFetchError("feed URL scheme must be http or https")
+    if not host or username is not None or password is not None:
+        raise FeedFetchError("feed URL must have a host and no credentials")
+    host = host.lower()
+    default_port = 443 if scheme == "https" else 80
+    port = default_port if port is None else port
+    if port < 1 or port > 65535:
+        raise FeedFetchError("feed URL port is invalid")
+
+    literal = _literal_address(host, port)
+    if literal is not None:
+        infos = [literal]
+    else:
+        resolver = resolver or socket.getaddrinfo
+        try:
+            infos = resolver(
+                host,
+                port,
+                socket.AF_UNSPEC,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+            )
+        except (OSError, socket.gaierror) as exc:
+            raise FeedFetchError("feed host resolution failed") from exc
+    if not infos:
+        raise FeedFetchError("feed host resolved to no addresses")
+
+    addresses = []
+    seen = set()
+    for family, socktype, protocol, _canonname, sockaddr in infos:
+        if family not in {socket.AF_INET, socket.AF_INET6} or socktype != socket.SOCK_STREAM:
+            continue
+        address = str(sockaddr[0])
+        if not _is_public_address(address):
+            raise FeedFetchError("feed host resolved to a non-public address")
+        key = (family, socktype, protocol, tuple(sockaddr))
+        if key in seen:
+            continue
+        seen.add(key)
+        addresses.append(ResolvedAddress(family, socktype, protocol, tuple(sockaddr)))
+    if not addresses:
+        raise FeedFetchError("feed host resolved to no usable public addresses")
+
+    path = parsed.path or "/"
+    request_target = urlunparse(("", "", path, parsed.params, parsed.query, ""))
+    netloc_host = f"[{host}]" if ":" in host else host
+    netloc = netloc_host if port == default_port else f"{netloc_host}:{port}"
+    canonical_url = urlunparse((scheme, netloc, path, parsed.params, parsed.query, ""))
+    return FeedTarget(
+        url=canonical_url,
+        scheme=scheme,
+        host=host,
+        port=port,
+        request_target=request_target,
+        addresses=tuple(addresses[:MAX_RESOLVED_ADDRESSES]),
+    )
+
+
+def _connected_socket(address: ResolvedAddress, timeout: float):
+    descriptor = socket.socket(address.family, address.socktype, address.protocol)
+    try:
+        descriptor.settimeout(timeout)
+        descriptor.connect(address.sockaddr)
+        return descriptor
+    except Exception:
+        descriptor.close()
+        raise
+
+
+def request_feed_target(target: FeedTarget, timeout: float = FEED_FETCH_TIMEOUT) -> FeedResponse:
+    """Request one validated target by its pinned address, without proxy lookup."""
+    last_error = None
+    for address in target.addresses:
+        connection = None
+        try:
+            descriptor = _connected_socket(address, timeout)
+            if target.scheme == "https":
+                context = ssl.create_default_context()
+                try:
+                    descriptor = context.wrap_socket(descriptor, server_hostname=target.host)
+                except Exception:
+                    descriptor.close()
+                    raise
+            connection = http.client.HTTPConnection(target.host, target.port, timeout=timeout)
+            connection.sock = descriptor
+            connection.request(
+                "GET",
+                target.request_target,
+                headers={
+                    "Accept": "application/atom+xml, application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.1",
+                    "Accept-Encoding": "identity",
+                    "Connection": "close",
+                    "User-Agent": FEED_USER_AGENT,
+                },
+            )
+            response = connection.getresponse()
+            headers = {name.lower(): value for name, value in response.getheaders()}
+            if response.status in REDIRECT_STATUSES or not 200 <= response.status < 300:
+                body = b""
+            else:
+                raw_length = headers.get("content-length", "")
+                if raw_length.isdigit() and int(raw_length) > MAX_FEED_BYTES:
+                    raise FeedFetchError("feed response exceeds the size limit")
+                body = response.read(MAX_FEED_BYTES + 1)
+                if len(body) > MAX_FEED_BYTES:
+                    raise FeedFetchError("feed response exceeds the size limit")
+                encoding = headers.get("content-encoding", "identity").strip().lower()
+                if encoding not in {"", "identity"}:
+                    raise FeedFetchError("feed response used an unrequested content encoding")
+            return FeedResponse(response.status, headers, body)
+        except FeedFetchError:
+            raise
+        except (OSError, ssl.SSLError, http.client.HTTPException) as exc:
+            last_error = exc
+        finally:
+            if connection is not None:
+                connection.close()
+    raise FeedFetchError("feed connection failed") from last_error
+
+
+def fetch_feed_document(url: str, resolver=None, requester=None) -> FetchedFeed:
+    """Fetch a feed with address pinning and per-hop redirect revalidation."""
+    requester = requester or request_feed_target
+    current = url
+    visited = set()
+    for hop in range(MAX_FEED_REDIRECTS + 1):
+        target = resolve_feed_target(current, resolver=resolver)
+        if target.url in visited:
+            raise FeedFetchError("feed redirect loop detected")
+        visited.add(target.url)
+        response = requester(target)
+        if response.status in REDIRECT_STATUSES:
+            if hop == MAX_FEED_REDIRECTS:
+                raise FeedFetchError("feed redirect limit exceeded")
+            location = response.headers.get("location", "").strip()
+            if not location:
+                raise FeedFetchError("feed redirect has no location")
+            current = urljoin(target.url, location)
+            continue
+        if not 200 <= response.status < 300:
+            raise FeedFetchError(f"feed HTTP status {response.status}")
+        response_headers = dict(response.headers)
+        response_headers.pop("content-encoding", None)
+        response_headers["content-location"] = target.url
+        return FetchedFeed(response.body, target.url, response_headers)
+    raise FeedFetchError("feed redirect limit exceeded")
+
+
+def read_bounded_regular_text(path: Path, maximum: int) -> str:
+    """Read an owner file without following a final symlink or trusting its size."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise FeedDataError("no-follow file opens are unsupported")
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | nofollow)
+    except OSError as exc:
+        raise FeedDataError(f"RSS input is not a readable regular file: {path}") from exc
+    try:
+        information = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(information.st_mode)
+            or information.st_uid != os.getuid()
+            or information.st_nlink != 1
+            or information.st_size > maximum
+        ):
+            raise FeedDataError(f"RSS input violates the bounded owner-file contract: {path}")
+        chunks = []
+        remaining = maximum + 1
+        while remaining:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > maximum:
+            raise FeedDataError(f"RSS input exceeds the size limit: {path}")
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise FeedDataError(f"RSS input is not valid UTF-8: {path}") from exc
+    finally:
+        os.close(descriptor)
 
 
 def now_ts() -> float:
@@ -61,11 +345,42 @@ def clean_text(text: str, limit: int = 280) -> str:
     return text[: max(0, limit - 3)].rstrip() + "..."
 
 
-def ensure_bootstrap_file(path: Path, content: str) -> None:
-    if path.exists():
-        return
+def write_new_regular_text(path: Path, content: str) -> bool:
+    """Create a new owner file without following or replacing any path entry."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise FeedDataError("no-follow file creation is unsupported")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    raw = content.encode("utf-8")
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | nofollow,
+            0o600,
+        )
+    except FileExistsError:
+        return False
+    try:
+        offset = 0
+        while offset < len(raw):
+            written = os.write(descriptor, raw[offset:])
+            if written <= 0:
+                raise FeedDataError(f"could not create RSS owner file: {path}")
+            offset += written
+        os.fsync(descriptor)
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    finally:
+        os.close(descriptor)
+    return True
+
+
+def ensure_bootstrap_file(path: Path, content: str) -> None:
+    write_new_regular_text(path, content)
 
 
 def ensure_profiles(path: Path) -> None:
@@ -134,28 +449,48 @@ def infer_tag_priority(url: str):
 
 
 def migrate_legacy_feeds(legacy_file: Path, feeds_tsv: Path, force: bool = False):
-    if feeds_tsv.exists() and not force:
-        return False
-    if not legacy_file.exists():
+    try:
+        feeds_tsv.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        if not force:
+            return False
+    try:
+        legacy_file.lstat()
+    except FileNotFoundError:
         return False
     urls = []
-    for raw in legacy_file.read_text(encoding="utf-8").splitlines():
+    legacy_text = read_bounded_regular_text(legacy_file, MAX_FEEDS_FILE_BYTES)
+    for raw in legacy_text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        if len(urls) >= MAX_FEED_ROWS:
+            raise FeedDataError("legacy feed configuration exceeds the row limit")
+        if len(line) > MAX_FEED_URL_LENGTH:
+            raise FeedDataError("legacy feed URL exceeds the length limit")
         urls.append(line)
-    feeds_tsv.parent.mkdir(parents=True, exist_ok=True)
-    with feeds_tsv.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.writer(fh, delimiter="\t")
-        writer.writerow(["enabled", "tag", "priority", "kind", "url", "notes"])
-        for url in urls:
-            tag, priority, kind = infer_tag_priority(url)
-            writer.writerow([1, tag, priority, kind, url, "migrated from legacy feeds.txt"])
+    from io import StringIO
+    output = StringIO()
+    writer = csv.writer(output, delimiter="\t")
+    writer.writerow(["enabled", "tag", "priority", "kind", "url", "notes"])
+    for url in urls:
+        tag, priority, kind = infer_tag_priority(url)
+        writer.writerow([1, tag, priority, kind, url, "migrated from legacy feeds.txt"])
+    if force:
+        atomic_write_text(feeds_tsv, output.getvalue())
+    elif not write_new_regular_text(feeds_tsv, output.getvalue()):
+        return False
     return True
 
 
 def ensure_feeds_tsv(feeds_tsv: Path, legacy_file: Path) -> None:
-    if feeds_tsv.exists():
+    try:
+        feeds_tsv.lstat()
+    except FileNotFoundError:
+        pass
+    else:
         return
     if migrate_legacy_feeds(legacy_file, feeds_tsv, force=False):
         return
@@ -165,45 +500,54 @@ def ensure_feeds_tsv(feeds_tsv: Path, legacy_file: Path) -> None:
 def load_profiles(path: Path):
     ensure_profiles(path)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        data = json.loads(read_bounded_regular_text(path, MAX_PROFILES_FILE_BYTES))
+    except (FeedDataError, json.JSONDecodeError, OSError):
         return {}
     out = {}
     if isinstance(data, dict):
-        for k, v in data.items():
+        for k, v in list(data.items())[:MAX_PROFILE_COUNT]:
             if isinstance(v, list):
-                out[str(k)] = [str(x).strip().lower() for x in v if str(x).strip()]
+                terms = []
+                for value in v[:MAX_PROFILE_TERMS]:
+                    term = str(value).strip().lower()
+                    if term:
+                        terms.append(term[:MAX_PROFILE_TERM_LENGTH])
+                out[str(k)[:MAX_PROFILE_TERM_LENGTH]] = terms
     return out
 
 
 def load_feeds(feeds_tsv: Path):
-    ensure_feeds_tsv(feeds_tsv, DEFAULT_LEGACY_FEEDS_FILE)
     rows = []
-    with feeds_tsv.open("r", encoding="utf-8", newline="") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
-        for row in reader:
-            url = (row.get("url") or "").strip()
-            if not url:
-                continue
-            enabled_raw = str(row.get("enabled", "1")).strip().lower()
-            enabled = enabled_raw not in {"0", "false", "no", "off"}
-            tag = (row.get("tag") or "research").strip().lower() or "research"
-            if tag not in KNOWN_TAGS:
-                tag = "research"
-            kind = (row.get("kind") or infer_kind(url)).strip().lower() or infer_kind(url)
-            try:
-                priority = int(str(row.get("priority") or "5").strip())
-            except (ValueError, TypeError):
-                priority = 5
-            notes = (row.get("notes") or "").strip()
-            rows.append({
-                "enabled": enabled,
-                "tag": tag,
-                "priority": max(0, min(priority, 10)),
-                "kind": kind,
-                "url": url,
-                "notes": notes,
-            })
+    from io import StringIO
+    text = read_bounded_regular_text(feeds_tsv, MAX_FEEDS_FILE_BYTES)
+    reader = csv.DictReader(StringIO(text), delimiter="\t")
+    for row_number, row in enumerate(reader, 1):
+        if row_number > MAX_FEED_ROWS:
+            raise FeedDataError("feed configuration exceeds the row limit")
+        url = (row.get("url") or "").strip()
+        if not url:
+            continue
+        if len(url) > MAX_FEED_URL_LENGTH:
+            raise FeedDataError("feed URL exceeds the length limit")
+        enabled_raw = str(row.get("enabled", "1")).strip().lower()
+        enabled = enabled_raw not in {"0", "false", "no", "off"}
+        tag = (row.get("tag") or "research").strip().lower() or "research"
+        if tag not in KNOWN_TAGS:
+            tag = "research"
+        kind = (row.get("kind") or infer_kind(url)).strip().lower() or infer_kind(url)
+        try:
+            priority = int(str(row.get("priority") or "5").strip())
+        except (ValueError, TypeError):
+            priority = 5
+        notes = (row.get("notes") or "").strip()
+        rows.append({
+            "enabled": enabled,
+            "tag": tag,
+            "priority": max(0, min(priority, 10)),
+            "kind": kind[:64],
+            "url": url,
+            "notes": notes[:4096],
+        })
     return rows
 
 
@@ -289,6 +633,8 @@ def save_feeds_with_backup(feeds_tsv: Path, rows, backup_dir: Path, reason: str)
 
 
 def parse_feeds_tsv_text(text: str):
+    if len(text.encode("utf-8")) > MAX_FEEDS_FILE_BYTES:
+        raise SystemExit("Input TSV exceeds the size limit.")
     rows = []
     from io import StringIO
     reader = csv.DictReader(StringIO(text), delimiter="\t")
@@ -297,10 +643,14 @@ def parse_feeds_tsv_text(text: str):
     fieldnames = [str(x).strip() for x in reader.fieldnames]
     if "url" not in fieldnames:
         raise SystemExit("Input TSV must contain a 'url' column.")
-    for raw in reader:
+    for row_number, raw in enumerate(reader, 1):
+        if row_number > MAX_FEED_ROWS:
+            raise SystemExit("Input TSV exceeds the feed row limit.")
         url = (raw.get("url") or "").strip()
         if not url:
             continue
+        if len(url) > MAX_FEED_URL_LENGTH:
+            raise SystemExit("Input TSV contains a feed URL that is too long.")
         enabled_raw = str(raw.get("enabled", "1")).strip().lower()
         enabled = enabled_raw not in {"0", "false", "no", "off"}
         tag = (raw.get("tag") or "").strip().lower()
@@ -352,8 +702,8 @@ def load_state(path: Path):
     if not path.exists():
         return {"seen_order": [], "feeds": {}}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        data = json.loads(read_bounded_regular_text(path, MAX_STATE_FILE_BYTES))
+    except (FeedDataError, json.JSONDecodeError, OSError):
         return {"seen_order": [], "feeds": {}}
     if not isinstance(data, dict):
         return {"seen_order": [], "feeds": {}}
@@ -363,7 +713,11 @@ def load_state(path: Path):
     feeds = data.get("feeds", {})
     if not isinstance(feeds, dict):
         feeds = {}
-    return {"seen_order": [str(x) for x in seen_order], "feeds": feeds}
+    bounded_feeds = dict(list(feeds.items())[:MAX_FEED_ROWS])
+    return {
+        "seen_order": [str(x) for x in seen_order[-STATE_LIMIT:]],
+        "feeds": bounded_feeds,
+    }
 
 
 def save_state(path: Path, state):
@@ -530,10 +884,24 @@ def fetch_items(feeds, state, per_feed_limit: int, summary_limit: int, selected_
     active_feeds = [f for f in feeds
                     if (include_disabled or f["enabled"])
                     and (not selected_tag or f["tag"] == selected_tag)]
+    if len(active_feeds) > MAX_FEED_ROWS:
+        raise FeedDataError("active feed set exceeds the row limit")
 
     # Parallel feed fetching (I/O-bound)
     def _fetch_one(url):
-        return feedparser.parse(url)
+        try:
+            fetched = fetch_feed_document(url)
+            return feedparser.parse(
+                fetched.body,
+                response_headers=fetched.headers,
+            )
+        except (FeedFetchError, OSError, ValueError) as exc:
+            return {
+                "bozo": True,
+                "bozo_exception": exc,
+                "entries": [],
+                "feed": {},
+            }
 
     _parallel = parallel
     if _parallel == 0:
@@ -649,7 +1017,8 @@ def fetch_items(feeds, state, per_feed_limit: int, summary_limit: int, selected_
 
 
 def cmd_run(args):
-    ensure_feeds_tsv(args.feeds_tsv, args.legacy_feeds_file)
+    if not args.require_existing_feeds:
+        ensure_feeds_tsv(args.feeds_tsv, args.legacy_feeds_file)
     ensure_profiles(args.profiles_file)
     feeds = load_feeds(args.feeds_tsv)
     state = load_state(args.state_file)
@@ -678,7 +1047,8 @@ def cmd_run(args):
 
     items.sort(key=lambda item: (item["score"], item["timestamp"]), reverse=True)
 
-    _write_digest_stubs(items)
+    if not args.no_write_digest_stubs:
+        _write_digest_stubs(items)
 
     by_tag = {}
     for item in items:
@@ -1035,6 +1405,16 @@ def build_parser():
     run.add_argument("--include-disabled", action="store_true")
     run.add_argument("--no-mark-seen", action="store_true")
     run.add_argument("--parallel", type=int, default=0, help="Parallel feed fetches (0=auto, 1=sequential)")
+    run.add_argument(
+        "--require-existing-feeds",
+        action="store_true",
+        help="fail closed instead of bootstrapping or migrating a missing feeds.tsv",
+    )
+    run.add_argument(
+        "--no-write-digest-stubs",
+        action="store_true",
+        help="do not copy feed-derived content into workspace memory/library files",
+    )
     run.set_defaults(func=cmd_run)
 
     doctor = sub.add_parser("doctor", help="Check feed health and fetch status.")

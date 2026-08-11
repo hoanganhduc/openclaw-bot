@@ -4,9 +4,45 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart={{ OPENCLAW_WORKSPACE }}/skills/rss-news-digest/run_and_summarize.sh
+ExecStart=/usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact owner_state_lock.py -- --mode shared --lock-path {{ OWNER_STATE_LOCK }} -- /usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact rss-news-digest/run_and_summarize.sh
 Environment=PYTHONUNBUFFERED=1
 Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Environment=OPENCLAW_STATE_DIR={{ OPENCLAW_HOME }}
+Environment=OPENCLAW_LIBEXEC={{ OPENCLAW_LIBEXEC }}
+Environment=PATH=/usr/bin:/bin
+Environment=TMPDIR=/tmp
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/run
+MemoryMax=1G
+MemorySwapMax=256M
+TasksMax=128
+CPUQuota=100%
+TimeoutStartSec=300
+LimitNOFILE=1024
+LimitFSIZE=128M
+BindReadOnlyPaths={{ OPENCLAW_LIBEXEC_ROOT }}
+BindPaths={{ OWNER_STATE_LOCK }}
+BindPaths={{ OPENCLAW_WORKSPACE }}/data/research/rss
+BindPaths={{ OPENCLAW_WORKSPACE }}/data/sessions
 
 [Install]
 WantedBy=default.target

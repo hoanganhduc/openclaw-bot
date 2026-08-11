@@ -35,6 +35,13 @@ OpenClaw-local state defaults:
 
 If `diagnose` reports the package missing, install or expose the `vnthuquan` CLI to the OpenClaw workspace before running live workflows. The wrapper searches `VNTHUQUAN_BIN`, `PATH`, `/workspace/.local/venv_vnthuquan/bin/vnthuquan`, `{{ USER_HOME }}/.vnthuquan_venv/bin/vnthuquan`, and configured source directories.
 
+The vnthuquan package receives a rebuilt, credential-free child environment.
+An `add-to-calibre` handoff carries no credential pointer; the Calibre launcher
+uses its fixed workspace authority and projects exactly `GDRIVE_CREDENTIALS`
+and `CALIBRE_GDRIVE_FOLDER_ID`. Telegram and other channel delivery is a
+data-only request to the host queue. No shared OpenClaw skill-secrets file is a
+fallback for this workflow.
+
 ## Common Commands
 
 Read-only discovery:

@@ -79,7 +79,7 @@ def _check_gdrive(config):
     if not creds or not folder_id:
         return {"name": "Google Drive", "ok": True, "message": "Not configured (skipped)"}
     try:
-        from lib.gdrive import GDriveClient
+        from .gdrive import GDriveClient
         gd = GDriveClient(config)
         ok, msg = gd.check_connection()
         return {"name": "Google Drive", "ok": ok, "message": msg}

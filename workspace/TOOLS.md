@@ -47,7 +47,8 @@ exec: /workspace/skills/zotero/run_zot.sh --json get "<query>" --send <CHANNEL> 
 ```
 Where CHANNEL and SENDER_ID come from the conversation metadata (e.g., telegram + sender_id field).
 
-**For any other file** (project PDFs, TeX sources, archives, etc.) — use `send_file.sh`:
+**For any other file** (project PDFs, TeX sources, archives, etc.) — first place
+the final artifact under `/workspace/data/exports`, then use `send_file.sh`:
 ```
 exec: /workspace/skills/zotero/send_file.sh <CHANNEL> <SENDER_ID> "<FILE_PATH>" "<CAPTION>"
 ```
@@ -57,6 +58,9 @@ exec: /workspace/skills/zotero/send_file.sh <CHANNEL> <SENDER_ID> "<FILE_PATH>" 
 2. You MUST check the JSON output for `"status":"ok"` before confirming delivery.
 3. If the exec output shows `"status":"error"`, tell the user what went wrong.
 4. NEVER skip the exec call. NEVER claim a file was sent without running the command.
+5. The target must already be present in the private
+   `delivery_policy.allowed_targets` list. The sender rejects every other target
+   and every path outside Zotero staging, Calibre staging, or `data/exports`.
 
 ---
 

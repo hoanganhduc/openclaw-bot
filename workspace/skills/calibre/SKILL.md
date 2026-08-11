@@ -16,7 +16,8 @@ PDF, MOBI) are stored in the Drive folder tree and downloaded on demand.
 1. Copy `config.json.example` to `config.json` and set `gdrive_folder_id`
    to the Google Drive folder ID containing your Calibre library
    (the folder that holds `metadata.db`).
-2. Ensure `GDRIVE_CREDENTIALS` (service account JSON) is in the secrets file.
+2. Put `GDRIVE_CREDENTIALS` (service account JSON) in the private dedicated
+   Calibre projection described under **Credentials**.
 3. Run `cal sync` to pull `metadata.db` and build the local cache.
 
 ## Commands
@@ -86,6 +87,8 @@ run_cal.sh get "ring" --index 0 --send "telegram:CHAT_ID"
 
 `--send` format: `channel:target` where channel is `telegram`, `zulip`,
 `googlechat`, or `whatsapp`. Uses `send_file.sh` from the zotero skill.
+The exact target must be present in the private delivery policy; prompt text
+or a CLI argument alone cannot authorize a recipient.
 
 ### Update metadata
 
@@ -187,11 +190,18 @@ Removes files older than 24 hours from the staging directory.
 
 ## Credentials
 
-Required in secrets file (`/workspace/.secrets.json`):
-- `GDRIVE_CREDENTIALS`: service account JSON (same key as used by Zotero skill)
+The OpenClaw launcher reads only the fixed private JSON authority
+`/workspace/.config/ai-agents-skills/calibre-secrets.json`. The file may contain
+only these keys:
 
-Optional override in secrets:
+- `GDRIVE_CREDENTIALS`: service account JSON (same key as used by Zotero skill)
 - `CALIBRE_GDRIVE_FOLDER_ID`: overrides the folder ID from config.json
+
+Caller-selected and shared secret files are not Calibre credential fallbacks.
+File delivery is a data-only request to the host queue and carries no delivery
+credential pointer. The host reads `~/.openclaw/file-delivery-policy.json` and
+the canonical OpenClaw channel credentials, then sends only the
+descriptor-snapshotted file Calibre downloaded into its staging tree.
 
 ---
 

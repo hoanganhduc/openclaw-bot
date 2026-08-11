@@ -37,6 +37,24 @@ from lib.drive_sync import DriveSync
 from lib.renamer import make_filename, make_drive_folder_name, make_author_folder_name
 
 
+def _subprocess_environment(*, delivery=False):
+    names = (
+        "AAS_RUNTIME_WORKSPACE",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "OPENCLAW_WORKSPACE",
+        "PATH",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "TZ",
+    )
+    environment = {name: os.environ[name] for name in names if os.environ.get(name)}
+    del delivery
+    return environment
+
+
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
@@ -62,6 +80,7 @@ def _trigger_ingest(book_data):
     subprocess.Popen(
         [sys.executable, script, "--source", "calibre", "--data", json.dumps(book_data)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
+        env=_subprocess_environment(),
     )
 
 
@@ -428,8 +447,17 @@ def cmd_get(args):
         caption = f"{book['title']} — {', '.join(book['authors'])}"
         if os.path.exists(send_script):
             proc = subprocess.run(
-                ["bash", send_script, channel, target, local_path, caption],
-                capture_output=True, text=True
+                [
+                    "/usr/bin/bash",
+                    "-p",
+                    send_script,
+                    channel,
+                    target,
+                    local_path,
+                    caption,
+                ],
+                capture_output=True, text=True,
+                env=_subprocess_environment(delivery=True),
             )
             try:
                 result["send_result"] = json.loads(proc.stdout)
@@ -678,7 +706,8 @@ def cmd_convert(args):
 
     proc = subprocess.run(
         [ebook_convert, src_path, dst_path],
-        capture_output=True, text=True
+        capture_output=True, text=True,
+        env=_subprocess_environment(),
     )
     if proc.returncode != 0:
         _err(f"ebook-convert failed: {proc.stderr[:500]}")

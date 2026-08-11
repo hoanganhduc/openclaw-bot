@@ -1,23 +1,40 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
+fi
 set -euo pipefail
-
-# OpenClaw sandbox: default the send-email secrets to the workspace-local config
-# (HOME=/workspace; .config is .stignore'd so the SMTP creds are never synced).
-export AAS_SECRETS_FILE="${AAS_SECRETS_FILE:-${HOME:-/workspace}/.config/send-email/secrets.json}"
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT
+export PATH=/usr/bin:/bin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 SCRIPT="$SCRIPT_DIR/send_email.py"
 
-# PGP-signed sends can't run in the OpenClaw sandbox (no gpg, no private key).
-# Route them to the host job queue, which signs with the host key. Only kicks in
-# when --sign is requested AND gpg is unavailable locally (so host/Codex installs,
-# which have gpg, keep signing locally and unsigned sandbox sends run locally).
-if ! command -v gpg >/dev/null 2>&1; then
+# This is the OpenClaw-specific launcher. Every real send crosses the host's
+# exact one-time approval gate regardless of caller-controlled environment.
+# Unsigned dry-runs remain local because they perform no outward action or key use.
+if [[ "${1:-}" == "send" ]]; then
+  _dry_run=0
+  _sign=0
   for _arg in "$@"; do
-    if [[ "$_arg" == "--sign" ]]; then
-      exec "$SCRIPT_DIR/run_send_email_host.sh" "$@"
-    fi
+    [[ "$_arg" == "--dry-run" ]] && _dry_run=1
+    [[ "$_arg" == "--sign" ]] && _sign=1
   done
+  if [[ "$_dry_run" -eq 0 || "$_sign" -eq 1 ]]; then
+    exec "$SCRIPT_DIR/run_send_email_host.sh" "$@"
+  fi
+  # A local unsigned preview has no SMTP authority. Scrub ambient defaults so
+  # the preview cannot silently add recipients, signatures, or identity text.
+  unset SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD SMTP_FROM SMTP_SECURITY \
+    SMTP_TIMEOUT SMTP_ACCOUNT SMTP_FROM_NAME SMTP_REPLY_TO SMTP_CC SMTP_BCC \
+    SMTP_SIGNATURE SMTP_SIGNATURE_HTML SMTP_REPLY_TO_SELF SMTP_BCC_SELF \
+    SMTP_PGP_SIGN SMTP_PGP_KEY SMTP_PGP_PASSPHRASE SMTP_GNUPG_HOME \
+    SEND_EMAIL_ADDRESS_BOOK AAS_RUNTIME_WORKSPACE
+  export SEND_EMAIL_SECRETS_FILE=/dev/null
+  export SEND_EMAIL_EXACT_QUEUE=1
 fi
 
 if [[ ! -f "$SCRIPT" ]]; then
@@ -25,15 +42,5 @@ if [[ ! -f "$SCRIPT" ]]; then
   exit 127
 fi
 
-if [[ -n "${AAS_RUNTIME_PYTHON:-}" ]]; then
-  exec "$AAS_RUNTIME_PYTHON" "$SCRIPT" "$@"
-fi
-if command -v python3 >/dev/null 2>&1; then
-  exec python3 "$SCRIPT" "$@"
-fi
-if command -v python >/dev/null 2>&1; then
-  exec python "$SCRIPT" "$@"
-fi
-
-printf 'error: no usable Python runtime found. Set AAS_RUNTIME_PYTHON or install Python 3.\n' >&2
-exit 127
+unset AAS_RUNTIME_PYTHON
+exec /usr/bin/python3 -I -S -B "$SCRIPT" "$@"

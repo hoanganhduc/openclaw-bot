@@ -87,6 +87,12 @@ Useful commands:
 - `purge --dir <workspace>`
 - `smoke`
 
+Optional `SEMANTIC_SCHOLAR_API_KEY` and `UNPAYWALL_EMAIL` credentials are
+restored through the fixed private authority
+`~/.config/ai-agents-skills/submission-venue.env`. The
+direct OpenClaw launcher projects them only into the helper's child environment;
+it does not source the file or pass values in command arguments.
+
 ## Safety Defaults
 
 - Local/offline by default.

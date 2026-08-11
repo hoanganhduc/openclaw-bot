@@ -17,7 +17,7 @@ def _load_fixture(name):
 class TestMetadataFetch:
     @responses.activate
     def test_doi_fetch_success(self):
-        from lib.metadata import fetch_metadata
+        from zotero_test_lib.metadata import fetch_metadata
 
         fixture = _load_fixture("metadata_journal.json")
         responses.add(responses.GET, "http://localhost:1969", status=200)
@@ -31,7 +31,7 @@ class TestMetadataFetch:
 
     @responses.activate
     def test_arxiv_fetch_success(self):
-        from lib.metadata import fetch_metadata
+        from zotero_test_lib.metadata import fetch_metadata
 
         fixture = _load_fixture("metadata_arxiv.json")
         responses.add(responses.GET, "http://localhost:1969", status=200)
@@ -45,7 +45,7 @@ class TestMetadataFetch:
 
     @responses.activate
     def test_server_unreachable(self):
-        from lib.metadata import fetch_metadata
+        from zotero_test_lib.metadata import fetch_metadata
 
         responses.add(responses.GET, "http://localhost:1969",
                       body=ConnectionError("refused"))
@@ -55,7 +55,7 @@ class TestMetadataFetch:
 
     @responses.activate
     def test_no_translator_found(self):
-        from lib.metadata import fetch_metadata
+        from zotero_test_lib.metadata import fetch_metadata
 
         responses.add(responses.GET, "http://localhost:1969", status=200)
         responses.add(responses.POST, "http://localhost:1969/web", status=501)
@@ -66,7 +66,7 @@ class TestMetadataFetch:
 
 class TestDuplicateDetection:
     def test_search_by_doi_with_title_hint(self):
-        from lib.zotero_client import ZoteroClient
+        from zotero_test_lib.zotero_client import ZoteroClient
 
         mock_items = [{
             "key": "ABC123",
@@ -83,7 +83,7 @@ class TestDuplicateDetection:
         assert result["key"] == "ABC123"
 
     def test_search_by_doi_no_match(self):
-        from lib.zotero_client import ZoteroClient
+        from zotero_test_lib.zotero_client import ZoteroClient
 
         config = {"zotero_user_id": "000", "ZOTERO_API_KEY": "fake"}
         client = ZoteroClient(config)

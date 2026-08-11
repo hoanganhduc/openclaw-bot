@@ -1,12 +1,12 @@
 [Unit]
-Description=OpenClaw Gateway (v2026.6.6)
+Description=OpenClaw Gateway (v2026.7.1-2)
 After=network-online.target
 Wants=network-online.target
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
 [Service]
-ExecStart=/usr/bin/node {{ USER_HOME }}/.npm-global/lib/node_modules/openclaw/dist/index.js gateway --port 18789
+ExecStart=/usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact owner_state_lock.py -- --mode shared --lock-path {{ OWNER_STATE_LOCK }} -- /usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact openclaw_host_cli.py -- gateway
 Restart=always
 RestartSec=5
 RestartPreventExitStatus=78
@@ -14,16 +14,22 @@ TimeoutStopSec=30
 TimeoutStartSec=30
 SuccessExitStatus=0 143
 KillMode=control-group
+RuntimeDirectory=openclaw-bot-gateway
+RuntimeDirectoryMode=0700
 Environment=DISPLAY=:99
 Environment=HOME={{ USER_HOME }}
-Environment=TMPDIR=/tmp
-Environment=PATH=/usr/bin:{{ USER_HOME }}/.npm-global/bin:{{ USER_HOME }}/.bun/bin:{{ USER_HOME }}/.local/bin:{{ USER_HOME }}/bin:{{ USER_HOME }}/.nix-profile/bin:{{ USER_HOME }}/.local/share/pnpm:/usr/local/bin:/bin
+Environment=OPENCLAW_STATE_DIR={{ OPENCLAW_HOME }}
+Environment=OPENCLAW_CONFIG_PATH={{ OPENCLAW_HOME }}/openclaw.json
+Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Environment=OPENCLAW_LIBEXEC={{ OPENCLAW_LIBEXEC }}
+Environment=TMPDIR=%t/openclaw-bot-gateway
+Environment=PATH=/usr/bin:/bin
 Environment=OPENCLAW_GATEWAY_PORT=18789
 Environment=OPENCLAW_SYSTEMD_UNIT=openclaw-gateway.service
 Environment="OPENCLAW_WINDOWS_TASK_NAME=OpenClaw Gateway"
 Environment=OPENCLAW_SERVICE_MARKER=openclaw
 Environment=OPENCLAW_SERVICE_KIND=gateway
-Environment=OPENCLAW_SERVICE_VERSION=2026.6.6
+Environment=OPENCLAW_SERVICE_VERSION=2026.7.1-2
 
 [Install]
 WantedBy=default.target

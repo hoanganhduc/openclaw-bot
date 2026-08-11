@@ -1,23 +1,34 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
+fi
 set -euo pipefail
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT
+export PATH=/usr/bin:/bin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 SCRIPT="$SCRIPT_DIR/axiom_axle_mcp.py"
+SECRET_LOADER="$SCRIPT_DIR/../_load_skill_secrets.py"
 
 if [[ ! -f "$SCRIPT" ]]; then
   printf 'runtime helper not found: %s\n' "$SCRIPT" >&2
   exit 127
 fi
 
-if [[ -n "${AAS_RUNTIME_PYTHON:-}" ]]; then
-  exec "$AAS_RUNTIME_PYTHON" "$SCRIPT" "$@"
-fi
-if command -v python3 >/dev/null 2>&1; then
-  exec python3 "$SCRIPT" "$@"
-fi
-if command -v python >/dev/null 2>&1; then
-  exec python "$SCRIPT" "$@"
+if [[ ! -f "$SECRET_LOADER" || -L "$SECRET_LOADER" ]]; then
+  printf 'managed skill secret loader is unavailable\n' >&2
+  exit 127
 fi
 
-printf 'error: no usable Python runtime found. Set AAS_RUNTIME_PYTHON or install Python 3.\n' >&2
-exit 127
+TRUSTED_PYTHON=/usr/bin/python3
+if [[ ! -x "$TRUSTED_PYTHON" || -L "$SECRET_LOADER" ]]; then
+  printf 'trusted isolated Python loader is unavailable\n' >&2
+  exit 127
+fi
+
+exec "$TRUSTED_PYTHON" -I -S -B "$SECRET_LOADER" \
+  --profile axiom-axle-mcp -- "$@"

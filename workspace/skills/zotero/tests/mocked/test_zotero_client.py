@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pyzotero.zotero_errors import HTTPError
 
-from lib.zotero_client import ZoteroClient, _extract_status, _extract_retry_after
+from zotero_test_lib.zotero_client import ZoteroClient, _extract_status, _extract_retry_after
 
 
 class TestRetryLogic:

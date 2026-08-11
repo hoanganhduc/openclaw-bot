@@ -2,9 +2,11 @@
 Description=Run RSS Research Radar Bot every 4 hours
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=4h
+OnCalendar=*-*-* 00/4:00:00 UTC
+AccuracySec=1min
+RandomizedDelaySec=0
 Persistent=true
+Unit=rss_news_digest_bot.service
 
 [Install]
 WantedBy=timers.target

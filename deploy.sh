@@ -1,5 +1,16 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
+fi
 set -euo pipefail
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT \
+  GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM
+export PATH=/usr/bin:/bin
 
 usage() {
   cat <<'EOF'
@@ -35,4 +46,3 @@ args=(--prefix "$PREFIX")
 "$SCRIPT_DIR/install.sh" "${args[@]}"
 
 echo "deploy complete"
-

@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 WORKSPACE = os.environ.get("OPENCLAW_WORKSPACE", "{{ OPENCLAW_WORKSPACE }}")
-ZOT_PY = os.path.join(WORKSPACE, "skills", "zotero", "zot.py")
+ZOT_RUNNER = os.path.join(WORKSPACE, "skills", "zotero", "run_zot.sh")
 GSP_HELPER = os.path.join(WORKSPACE, "skills", "getscipapers_requester", "gsp_openclaw_helper.py")
 WATCH_KEYS_FILE = os.path.join(WORKSPACE, "data", "research", "zotero", "watch-keys.json")
 
@@ -82,7 +82,7 @@ def main():
         print(f"Watch {watch_id}: attaching PDF to {zotero_key}...", file=sys.stderr)
         try:
             r = subprocess.run(
-                [sys.executable, ZOT_PY, "update", zotero_key, "--attach-pdf"],
+                [ZOT_RUNNER, "update", zotero_key, "--attach-pdf"],
                 capture_output=True, text=True, timeout=120,
             )
             if r.returncode == 0:

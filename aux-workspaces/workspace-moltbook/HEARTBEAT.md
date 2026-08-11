@@ -1,3 +1,1 @@
-# Heartbeat Log
-
-Last heartbeat initialization: 2026-03-28 (system audit reset)
+<!-- Moltbook is retired; keep this file comments-only so it cannot schedule work. -->

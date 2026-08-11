@@ -2,9 +2,11 @@
 Description=Run moltbook relay every 5 minutes
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
+OnCalendar=*-*-* *:0/5:00 UTC
 AccuracySec=30s
+RandomizedDelaySec=0
+Persistent=false
+Unit=moltbook-relay.service
 
 [Install]
 WantedBy=timers.target

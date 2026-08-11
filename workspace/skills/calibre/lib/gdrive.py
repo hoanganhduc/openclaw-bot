@@ -22,7 +22,7 @@ class GDriveClient:
         """
         if isinstance(creds_or_config, dict):
             config = creds_or_config
-            creds_value = config.get("GDRIVE_CREDENTIALS") or config.get("gdrive_credentials_file", "")
+            creds_value = config.get("GDRIVE_CREDENTIALS")
             self.folder_id = config.get("gdrive_folder_id", "")
             self.share_permission = config.get("gdrive_share_permission", "anyone_with_link")
         else:

@@ -1,0 +1,6 @@
+{
+  "email_policy": {
+    "approved_messages": []
+  },
+  "schema": "openclaw.email-policy/v1"
+}

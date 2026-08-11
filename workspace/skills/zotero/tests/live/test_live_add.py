@@ -1,9 +1,9 @@
 """Live integration test — add throwaway item, verify, delete."""
 
 import pytest
-from lib.config import load_config
-from lib.zotero_client import ZoteroClient
-from lib.metadata import fetch_metadata
+from zotero_test_lib.config import load_config
+from zotero_test_lib.zotero_client import ZoteroClient
+from zotero_test_lib.metadata import fetch_metadata
 
 
 TEST_DOI = "10.4230/LIPIcs.ISAAC.2019.48"  # A known LIPIcs paper

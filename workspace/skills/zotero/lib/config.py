@@ -1,11 +1,16 @@
-"""Config loader for the zot CLI. SecretRef-aware with env var + file fallback."""
+"""Config loader for the zot CLI with environment-first secret handling."""
 
 import json
 import os
 import sys
 
 REQUIRED_FOR_SEARCH = ["zotero_user_id"]
-SECRETS_KEYS = ["ZOTERO_API_KEY", "WEBDAV_PASSWORD", "GDRIVE_CREDENTIALS"]
+SECRETS_KEYS = [
+    "ZOTERO_API_KEY",
+    "WEBDAV_PASSWORD",
+    "GDRIVE_CREDENTIALS",
+    "SEMANTIC_SCHOLAR_API_KEY",
+]
 
 DEFAULT_CONFIG = {
     "translation_server": "http://host.docker.internal:1969",
@@ -21,32 +26,22 @@ def _find_config_path():
     return os.path.join(workspace, "skills", "zotero", "config.json")
 
 
-def _find_secrets_path():
-    return os.environ.get(
-        "OPENCLAW_SECRETS_FILE",
-        os.path.expanduser("~/.openclaw/secrets.json"),
-    )
-
-
 def _load_secrets():
-    """Load secrets: env vars first, fall back to secrets.json file."""
+    """Use only the wrapper's already-bounded environment projection."""
     secrets = {}
     for key in SECRETS_KEYS:
         val = os.environ.get(key)
         if val:
             secrets[key] = val
 
-    missing = [k for k in SECRETS_KEYS if k not in secrets]
-    if missing:
-        secrets_path = _find_secrets_path()
-        if os.path.exists(secrets_path):
-            with open(secrets_path) as f:
-                file_secrets = json.load(f)
-            for key in missing:
-                if key in file_secrets and file_secrets[key]:
-                    secrets[key] = file_secrets[key]
-
     return secrets
+
+
+def _scrub_projected_secrets():
+    """Remove consumed credentials before any helper subprocess can inherit them."""
+
+    for key in SECRETS_KEYS:
+        os.environ.pop(key, None)
 
 
 def load_config(require=None):
@@ -69,6 +64,11 @@ def load_config(require=None):
     with open(config_path) as f:
         config = json.load(f)
 
+    # This legacy field used to appear in the non-secret config example. Never
+    # use a credential from a normally 0644 config file; the uppercase secret
+    # authority below comes from the managed environment or private secrets file.
+    config.pop("semantic_scholar_api_key", None)
+
     # Apply defaults for missing optional keys
     for key, default in DEFAULT_CONFIG.items():
         if key not in config or config[key] == "":
@@ -76,6 +76,7 @@ def load_config(require=None):
 
     # Merge secrets
     secrets = _load_secrets()
+    _scrub_projected_secrets()
     config.update(secrets)
 
     # Validate required fields
@@ -96,6 +97,18 @@ def load_config(require=None):
     # Resolve workspace path
     config["workspace"] = os.environ.get(
         "OPENCLAW_WORKSPACE", "{{ OPENCLAW_WORKSPACE }}"
+    )
+    os.environ["PATH"] = ":".join(
+        (
+            os.path.join(config["workspace"], ".local", "venv_getscipapers", "bin"),
+            os.path.join(config["workspace"], ".local", "bin"),
+            "/usr/local/sbin",
+            "/usr/local/bin",
+            "/usr/sbin",
+            "/usr/bin",
+            "/sbin",
+            "/bin",
+        )
     )
     config["staging_dir"] = os.path.join(
         config["workspace"], "data", "research", "zotero", "staging"

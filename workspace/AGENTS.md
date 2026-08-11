@@ -203,7 +203,7 @@ Before performing ANY of the following actions, you MUST ask the user for confir
 - Any write to `memory/` (daily notes, knowledge captures, concept files, review indexes, weekly reviews, library entries)
 - Writing review queue entries to `data/review-queue/`
 - Appending to DECISIONS.md in `data/research/openclaw-rebuild-plan.md`
-- Running `rollback_task.sh start`, `rollback_task.sh done`, or `rollback_task.sh checkpoint`
+- Running the non-destructive `rollback_task.sh start`, `status`, `done`, or metadata-only `checkpoint`
 
 If unsure whether the user confirmed, ask again. **Never assume silence or a vague reply = approval.**
 
@@ -262,9 +262,9 @@ After EACH significant step of a multi-step task, append a progress note to `mem
 ## When user says "stop", "cancel", "abort", "halt", or "rollback"
 
 1. **Immediately stop all current tool calls.** Do not complete the current operation.
-2. Run: `exec: bash /workspace/scripts/rollback_task.sh stop`
-3. Report to the user: what was rolled back, which files were restored, current state of the workspace.
-4. Ask the user what to do next.
+2. Run only the read-only status check: `exec: bash /workspace/scripts/rollback_task.sh status`
+3. Report the partial state. Do not reset, clean, discard, or automatically revert any file.
+4. Ask the user which exact changes, if any, they want reverted.
 
 ## Checking active task status
 

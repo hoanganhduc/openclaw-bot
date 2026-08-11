@@ -1,27 +1,25 @@
-#!/usr/bin/env bash
-# Wrapper that sets PYTHONPATH and runs cal.py
-set -euo pipefail
-
-SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Resolve workspace: /workspace inside sandbox → host path via OPENCLAW_WORKSPACE
-if [[ -n "${OPENCLAW_WORKSPACE:-}" ]]; then
-  WORKSPACE="$OPENCLAW_WORKSPACE"
-elif [[ -d "{{ OPENCLAW_WORKSPACE }}" ]]; then
-  WORKSPACE="{{ OPENCLAW_WORKSPACE }}"
-else
-  WORKSPACE="/workspace"
+#!/usr/bin/bash -p
+# Run Calibre only after projecting its two dedicated Google Drive settings.
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
 fi
+set -euo pipefail
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT
+export PATH=/usr/bin:/bin
 
-# Dependencies are restored by the closure installer or baked into the sandbox.
-# The skill must never mutate its environment or hide a failed install at runtime.
-PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-SITE_PACKAGES="$WORKSPACE/.local/lib/python${PY_VER}/site-packages"
-export PYTHONPATH="$WORKSPACE/.local:$SITE_PACKAGES:$SKILL_DIR:${PYTHONPATH:-}"
-export OPENCLAW_WORKSPACE="$WORKSPACE"
-export OPENCLAW_SECRETS_FILE="${OPENCLAW_SECRETS_FILE:-$WORKSPACE/.secrets.json}"
+SKILL_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
+WORKSPACE="$(cd -- "$SKILL_DIR/../.." && pwd -P)"
+SECRET_LOADER="$SKILL_DIR/../_load_skill_secrets.py"
+TRUSTED_PYTHON=/usr/bin/python3
 
-python3 -c 'import googleapiclient, google.auth, ebooklib, requests' >/dev/null \
-  || { echo '{"status":"error","message":"Calibre Python dependency closure is unavailable"}' >&2; exit 2; }
+[[ -x "$TRUSTED_PYTHON" && -f "$SECRET_LOADER" && ! -L "$SECRET_LOADER" ]] || {
+  printf 'managed Calibre secret loader is unavailable\n' >&2
+  exit 127
+}
 
-exec python3 "$SKILL_DIR/cal.py" "$@"
+exec "$TRUSTED_PYTHON" -I -S -B "$SECRET_LOADER" \
+  --profile calibre -- "$@"

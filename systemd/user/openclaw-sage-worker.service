@@ -1,0 +1,52 @@
+[Unit]
+Description=OpenClaw isolated SageMath queue worker
+
+[Service]
+Type=simple
+RuntimeDirectory=openclaw-bot-sage-worker
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact owner_state_lock.py -- --mode shared --lock-path {{ OWNER_STATE_LOCK }} -- /usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact job_queue_worker.sh
+Environment=PATH=/usr/bin:/bin
+Environment=TMPDIR=%t/openclaw-bot-sage-worker
+Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Environment=OPENCLAW_STATE_DIR={{ OPENCLAW_HOME }}
+Environment=OPENCLAW_LIBEXEC={{ OPENCLAW_LIBEXEC }}
+Environment=OPENCLAW_QUEUE_KIND=sage
+Environment=OPENCLAW_EXPECTED_OWNER_STATE_LOCK={{ OWNER_STATE_LOCK }}
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateNetwork=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=2G
+MemorySwapMax=512M
+TasksMax=256
+CPUQuota=200%
+LimitNOFILE=1024
+LimitFSIZE=2G
+BindReadOnlyPaths={{ OPENCLAW_LIBEXEC_ROOT }}
+BindPaths={{ OWNER_STATE_LOCK }}
+BindPaths={{ OPENCLAW_WORKSPACE }}/data/job-queue
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/research
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/exports
+BindPaths={{ OPENCLAW_WORKSPACE }}/data/research/sagemath
+
+[Install]
+WantedBy=default.target

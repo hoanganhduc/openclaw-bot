@@ -3,4 +3,8 @@ Description=Relay moltbook staging files to sanitizer input
 
 [Service]
 Type=oneshot
-ExecStart={{ OPENCLAW_WORKSPACE }}/scripts/moltbook-relay.sh
+ExecStart=/usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact owner_state_lock.py -- --mode shared --lock-path {{ OWNER_STATE_LOCK }} -- /usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact moltbook-relay.sh
+Environment=OPENCLAW_STATE_DIR={{ OPENCLAW_HOME }}
+Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Environment=OPENCLAW_LIBEXEC={{ OPENCLAW_LIBEXEC }}
+Environment=PATH=/usr/bin:/bin

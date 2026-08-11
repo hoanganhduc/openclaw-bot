@@ -20,6 +20,18 @@ LEAN_EXPLORE_CACHE = Path.home() / ".lean_explore" / "cache"
 BACKENDS = {"api", "local"}
 
 
+def _consume_auth_status() -> str:
+    value = os.environ.pop("LEANEXPLORE_API_KEY", None)
+    if value is None:
+        return "missing"
+    if value == "":
+        return "empty"
+    return "present"
+
+
+LEAN_EXPLORE_AUTH_STATUS = _consume_auth_status()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lean-explore-mcp")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -149,11 +161,7 @@ def module_status(name: str) -> dict[str, Any]:
 
 
 def auth_status() -> str:
-    if "LEANEXPLORE_API_KEY" not in os.environ:
-        return "missing"
-    if os.environ.get("LEANEXPLORE_API_KEY") == "":
-        return "empty"
-    return "present"
+    return LEAN_EXPLORE_AUTH_STATUS
 
 
 def local_cache_status() -> dict[str, Any]:

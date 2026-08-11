@@ -1,0 +1,12 @@
+{
+  "schema": "openclaw.file-delivery-policy/v1",
+  "delivery_policy": {
+    "allowed_targets": {
+      "telegram": [],
+      "zulip": [],
+      "googlechat": [],
+      "whatsapp": [],
+      "zalo": []
+    }
+  }
+}

@@ -7,8 +7,9 @@ Subcommands:
   show-config  print the resolved configuration with the password redacted
   selftest     offline smoke (no network): build, serialize, and re-parse messages in memory
 
-Configuration is resolved in increasing precedence from (1) a JSON secrets file
-named by AAS_SECRETS_FILE (its "smtp" object, or top-level SMTP_* keys),
+Configuration is resolved in increasing precedence from (1) the dedicated JSON
+secrets file selected by SEND_EMAIL_SECRETS_FILE (defaulting to the private
+``~/.config/send-email/secrets.json`` authority),
 (2) environment variables, then (3) explicit command-line flags. Connection
 settings: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM,
 SMTP_SECURITY, SMTP_TIMEOUT. Pre-defined sender identity (all optional):
@@ -31,9 +32,9 @@ import io
 import json
 import mimetypes
 import os
-import shutil
 import smtplib
 import ssl
+import stat
 import subprocess
 import sys
 import tempfile
@@ -134,20 +135,50 @@ def _as_list(value: object) -> list[str]:
 
 
 def _secrets_path() -> str | None:
-    return os.environ.get("AAS_SECRETS_FILE") or os.environ.get("OPENCLAW_SECRETS_FILE")
+    return os.environ.get("SEND_EMAIL_SECRETS_FILE") or os.fspath(
+        Path.home() / ".config" / "send-email" / "secrets.json"
+    )
 
 
 def _read_secrets_file() -> dict:
-    """Return the raw parsed secrets-file object, or {} if absent/unreadable."""
+    """Read only a private, single-link regular dedicated authority."""
     path = _secrets_path()
     if not path:
         return {}
-    file = Path(path)
-    if not file.is_file():
-        return {}
+    descriptor: int | None = None
     try:
-        data = json.loads(file.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
+        descriptor = os.open(
+            path,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        information = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(information.st_mode)
+            or information.st_nlink != 1
+            or information.st_uid != os.geteuid()
+            or stat.S_IMODE(information.st_mode) & 0o077
+            or information.st_size > 1024 * 1024
+        ):
+            return {}
+        chunks: list[bytes] = []
+        remaining = information.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(remaining, 64 * 1024))
+            if not chunk:
+                return {}
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+    except OSError:
+        return {}
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    try:
+        data = json.loads(payload)
+    except (UnicodeDecodeError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -297,6 +328,21 @@ def load_config(args: argparse.Namespace) -> SmtpConfig:
     pgp_passphrase = pick(None, "SMTP_PGP_PASSPHRASE", "pgp_passphrase")
     gnupg_home = pick(getattr(args, "gnupg_home", None), "SMTP_GNUPG_HOME", "gnupg_home")
 
+    # The host approval queue binds every message-affecting input explicitly.
+    # Suppress account defaults that could add recipients, identity text, a
+    # signature, or a signing choice after the owner approved the queue intent.
+    exact_queue = os.environ.get("SEND_EMAIL_EXACT_QUEUE") == "1"
+    if exact_queue:
+        from_name = None
+        reply_to = None
+        signature = None
+        signature_html = None
+        reply_to_self = False
+        bcc_self = False
+        pgp_sign = False
+        pgp_key = None
+        gnupg_home = None
+
     return SmtpConfig(
         host=str(host) if host is not None else None,
         port=_coerce_int(port),
@@ -310,8 +356,8 @@ def load_config(args: argparse.Namespace) -> SmtpConfig:
         reply_to=str(reply_to) if reply_to is not None else None,
         signature=str(signature) if signature is not None else None,
         signature_html=str(signature_html) if signature_html is not None else None,
-        cc=_as_list(os.environ.get("SMTP_CC")) or _as_list(secrets.get("cc")),
-        bcc=_as_list(os.environ.get("SMTP_BCC")) or _as_list(secrets.get("bcc")),
+        cc=[] if exact_queue else (_as_list(os.environ.get("SMTP_CC")) or _as_list(secrets.get("cc"))),
+        bcc=[] if exact_queue else (_as_list(os.environ.get("SMTP_BCC")) or _as_list(secrets.get("bcc"))),
         reply_to_self=reply_to_self,
         bcc_self=bcc_self,
         pgp_sign=pgp_sign,
@@ -486,9 +532,27 @@ def _should_sign(args: argparse.Namespace, cfg: SmtpConfig) -> bool:
 def _gpg_detach_sign(data: bytes, *, key: str | None, gnupg_home: str | None,
                      passphrase: str | None) -> str:
     """Return an ASCII-armored detached signature over data via the gpg CLI."""
-    if shutil.which("gpg") is None:
-        raise ValueError("gpg not found on PATH; install GnuPG to sign with --sign")
-    cmd = ["gpg", "--batch", "--no-tty", "--yes", "--armor", "--digest-algo", PGP_DIGEST]
+    gpg = Path("/usr/bin/gpg")
+    try:
+        gpg_information = gpg.stat(follow_symlinks=False)
+    except FileNotFoundError as exc:
+        raise ValueError("trusted /usr/bin/gpg is unavailable") from exc
+    if (
+        not stat.S_ISREG(gpg_information.st_mode)
+        or gpg_information.st_uid != 0
+        or stat.S_IMODE(gpg_information.st_mode) & 0o022
+        or not os.access(gpg, os.X_OK)
+    ):
+        raise ValueError("trusted /usr/bin/gpg is unsafe")
+    cmd = [
+        os.fspath(gpg),
+        "--batch",
+        "--no-tty",
+        "--yes",
+        "--armor",
+        "--digest-algo",
+        PGP_DIGEST,
+    ]
     if gnupg_home:
         cmd += ["--homedir", gnupg_home]
     if key:

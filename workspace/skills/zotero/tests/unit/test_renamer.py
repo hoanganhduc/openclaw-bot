@@ -1,7 +1,7 @@
 """Tests for lib/renamer.py — ZotFile pattern engine."""
 
 import pytest
-from lib.renamer import rename, _format_authors, _format_title, _extract_year
+from zotero_test_lib.renamer import rename, _format_authors, _format_title, _extract_year
 
 
 class TestFormatAuthors:

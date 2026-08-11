@@ -14,6 +14,24 @@ from lib.config import load_config
 from lib.zotero_client import ZoteroClient
 
 
+def _subprocess_environment(*, delivery: bool = False):
+    names = (
+        "AAS_RUNTIME_WORKSPACE",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "OPENCLAW_WORKSPACE",
+        "PATH",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "TZ",
+    )
+    environment = {name: os.environ[name] for name in names if os.environ.get(name)}
+    del delivery
+    return environment
+
+
 def _trigger_ingest(item_data):
     """Fire-and-forget: ingest Zotero item into memory. Does not block."""
     import subprocess
@@ -26,6 +44,7 @@ def _trigger_ingest(item_data):
     subprocess.Popen(
         [sys.executable, script, "--source", "zotero", "--data", json.dumps(item_data)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
+        env=_subprocess_environment(),
     )
 
 
@@ -1000,6 +1019,7 @@ def _send_file(file_path, channel, target, title):
         proc = subprocess.run(
             [script, channel, target, file_path, title],
             capture_output=True, text=True, timeout=180,
+            env=_subprocess_environment(delivery=True),
         )
         try:
             return json.loads(proc.stdout.strip())

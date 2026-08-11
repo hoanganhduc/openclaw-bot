@@ -1,0 +1,61 @@
+[Unit]
+Description=OpenClaw Zalo-only approved file-delivery queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+RuntimeDirectory=openclaw-bot-zalo-delivery-worker
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact owner_state_lock.py -- --mode shared --lock-path {{ OWNER_STATE_LOCK }} -- /usr/bin/python3 -I -S -B {{ OPENCLAW_LIBEXEC }}/host_exec.py --generation {{ OPENCLAW_LIBEXEC }} --artifact job_queue_worker.sh
+Environment=PATH=/usr/bin:/bin
+Environment=TMPDIR=%t/openclaw-bot-zalo-delivery-worker
+Environment=OPENCLAW_WORKSPACE={{ OPENCLAW_WORKSPACE }}
+Environment=OPENCLAW_LIBEXEC={{ OPENCLAW_LIBEXEC }}
+Environment=OPENCLAW_QUEUE_KIND=send
+Environment=OPENCLAW_DELIVERY_CHANNEL=zalo
+Environment=OPENCLAW_DELIVERY_POLICY=%d/file-delivery-policy
+Environment=OPENCLAW_DELIVERY_STATE={{ USER_HOME }}/.local/state/openclaw-bot/delivery-authorities/zalo
+Environment=OPENCLAW_EXPECTED_OWNER_STATE_LOCK={{ OWNER_STATE_LOCK }}
+LoadCredential=file-delivery-policy:{{ OPENCLAW_HOME }}/file-delivery-policy.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=1G
+MemorySwapMax=256M
+TasksMax=128
+CPUQuota=100%
+LimitNOFILE=1024
+LimitFSIZE=2G
+BindReadOnlyPaths={{ OPENCLAW_LIBEXEC_ROOT }}
+BindReadOnlyPaths={{ USER_HOME }}/.npm-global/lib/node_modules/openclaw
+BindReadOnlyPaths={{ USER_HOME }}/.local/state/openclaw-bot/delivery-authorities/zalo
+BindPaths={{ OWNER_STATE_LOCK }}
+BindPaths={{ OPENCLAW_WORKSPACE }}/data/send-queue/zalo
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/research/zotero/staging
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/calibre/staging
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/vnu_eoffice/documents
+BindReadOnlyPaths=-{{ OPENCLAW_WORKSPACE }}/data/exports
+BindPaths={{ USER_HOME }}/.local/state/openclaw-bot/delivery-spool
+
+[Install]
+WantedBy=default.target

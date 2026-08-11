@@ -1,8 +1,8 @@
 """Live integration test — search Zotero library."""
 
 import pytest
-from lib.config import load_config
-from lib.zotero_client import ZoteroClient
+from zotero_test_lib.config import load_config
+from zotero_test_lib.zotero_client import ZoteroClient
 
 
 @pytest.mark.live

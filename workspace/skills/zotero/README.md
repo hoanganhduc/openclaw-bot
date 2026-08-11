@@ -59,7 +59,8 @@ DOI/arXiv/ISBN/URL
 
 | Component | Purpose |
 |-----------|---------|
-| `zot.py` | CLI entry point |
+| `run_zot.sh` | Direct OpenClaw entrypoint and restored-credential boundary |
+| `zot.py` | CLI implementation (invoke through `run_zot.sh`) |
 | `lib/config.py` | Config loader (SecretRef-aware) |
 | `lib/metadata.py` | Translation Server client (auto-detect DOI/arXiv/ISBN/URL) |
 | `lib/zotero_client.py` | pyzotero wrapper (exponential backoff on 429/5xx) |
@@ -73,10 +74,35 @@ DOI/arXiv/ISBN/URL
 
 ## Configuration
 
-**Secrets** (`~/.openclaw/secrets.json`):
+**Zotero skill JSON authority** is selected only by
+`AAS_ZOTERO_SKILL_SECRETS_FILE` and defaults to the workspace-private
+`.config/ai-agents-skills/zotero-secrets.json`. Shared and legacy selectors are
+not accepted:
 - `ZOTERO_API_KEY` — from https://www.zotero.org/settings/keys
 - `WEBDAV_PASSWORD` — WebDAV apps password
 - `GDRIVE_CREDENTIALS` — Google service account JSON string
+- `SEMANTIC_SCHOLAR_API_KEY` — optional Semantic Scholar Graph API key. Never
+  put this key in `skills/zotero/config.json`.
+- `TELEGRAM_BOT_TOKEN` is not projected through the Zotero skill authority. It
+  is read only by the host delivery consumer from
+  `OPENCLAW_HOME/secrets.json`.
+
+`send_file.sh` is only an untrusted queue producer. It receives no token,
+Remote Bridge authority, or provider credential. The install-attested host
+consumer validates the queue request, requires an exact opt-in target, and
+accepts files only from Zotero staging, Calibre staging, or
+`OPENCLAW_WORKSPACE/data/exports`. It snapshots the approved no-follow
+descriptor into an owner-private host spool. Telegram uses fixed
+`/usr/bin/curl`; other channels use the attested OpenClaw CLI and its normal
+host-side channel configuration.
+
+The separate portable policy authority is
+`OPENCLAW_HOME/file-delivery-policy.json`; it contains the same `schema` and
+`delivery_policy` but no token. Start from
+`config/file-delivery-policy.json.template`, whose lists are intentionally
+empty. The umbrella materializer owns the migration and merge contract; the
+workspace state is never the sole backed authority. Missing policy is
+`NOT_CONFIGURED`, and bot or channel credentials never authorize a target.
 
 **Config** (`skills/zotero/config.json`):
 - `zotero_user_id` — numeric user ID

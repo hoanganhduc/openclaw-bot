@@ -3,7 +3,7 @@
 import os
 import zipfile
 import pytest
-from lib.filetype import detect_content_type, is_pdf
+from zotero_test_lib.filetype import detect_content_type, is_pdf
 
 
 class TestDetectContentType:

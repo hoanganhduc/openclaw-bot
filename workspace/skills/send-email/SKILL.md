@@ -59,9 +59,11 @@ A ready-to-edit sample ships at `skills/send-email/send-email.example.json`
 Copy its `smtp` (or `accounts`) block into your secrets file and replace the
 `<placeholders>`.
 
-- Secrets file: the managed runner sets `AAS_SECRETS_FILE` to
-  `workspace/.secrets.json`. Put an `smtp` object there (or top-level `SMTP_*`
-  keys) holding both the connection settings and the identity defaults:
+- Secrets file: host/Codex installs use
+  `${XDG_CONFIG_HOME:-~/.config}/send-email/secrets.json`. Put an `smtp` object
+  there (or top-level `SMTP_*` keys) holding both the connection settings and
+  identity defaults. OpenClaw sandbox installs do not receive this file; real
+  sends use the approved host queue.
 
 ```json
 {
@@ -116,23 +118,11 @@ and `smtp.office365.com` (use an app password, not the account password).
 
 ### Where to put the config across install targets
 
-Each install target reads its own `<runtime_root>/workspace/.secrets.json`, and
-the runtime root differs per target:
-
-- Codex: `~/.codex/runtime/workspace/.secrets.json` (Windows: `%USERPROFILE%\.codex\runtime\workspace\.secrets.json`)
-- multi-agent installs ({{ MODEL_ID }}): `~/.local/share/ai-agents-skills/runtime/workspace/.secrets.json` (Windows: `%LOCALAPPDATA%\ai-agents-skills\runtime\workspace\.secrets.json`)
-
-To make one configuration serve **all** targets, use either approach (both work
-on every OS, and CLI flags still override):
-
-1. One shared secrets file: set `AAS_ALLOW_EXTERNAL_SECRETS_FILE=1` and
-   `AAS_SECRETS_FILE=<one path>` (e.g. `~/.config/send-email/secrets.json`) in
-   your shell profile; every target's runner then reads that single file.
-2. Environment variables: put `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`,
-   `SMTP_FROM`, `SMTP_FROM_NAME`, `SMTP_ACCOUNT`, etc. in a shared profile (e.g.
-   `~/.secrets.env`); the skill reads env before the secrets file, so all targets
-   pick them up. Otherwise, drop the same `.secrets.json` into each target's
-   `workspace/` directory listed above.
+The host authority is `${XDG_CONFIG_HOME:-~/.config}/send-email/secrets.json`.
+OpenClaw receives only the email queue producer, never an SMTP or OpenPGP
+credential projection. Do not set `AAS_SECRETS_FILE` to the SMTP authority; that
+retired shared selector is not accepted by this skill. There is no shared
+runtime-file fallback.
 
 Never write a real address, password, or token into a tracked file; pass them via
 the environment or the secrets file. Use `show-config` to confirm what resolved.
@@ -206,11 +196,24 @@ signature, which works with HTML and attachments). This needs **GnuPG (`gpg`)** 
 PATH with your secret key in the keyring; it adds no Python dependency, and
 unsigned sending still works if `gpg` is absent.
 
-**In the OpenClaw sandbox** there is no `gpg` and no private key, so `run_send_email.sh`
-automatically routes any `--sign` send to the host job queue: the host worker runs
-`send_email.py` with the host send-email config and `~/.gnupg`, signs, and sends — your
-private key never enters the sandbox. Just use `send --sign` as normal; it returns the
-same JSON (`"signed": true`). Unsigned sends still run locally in the sandbox.
+**In the OpenClaw sandbox**, every real send is routed to a dedicated host worker.
+The worker snapshots file inputs, suppresses hidden account recipient/signature
+defaults, and consumes one exact owner approval before SMTP or GPG runs. The SMTP
+authority and private key never enter the sandbox. Unsigned local `--dry-run`
+previews remain available because they perform no outward action or private-key use;
+the preview launcher deliberately loads no SMTP secrets and suppresses all ambient
+recipient, signature, signing, and identity defaults.
+
+Choose an approval id and submit the exact message once with
+`--host-approval-id ID`. A denied result includes the canonical intent digest,
+recipients, sender, account, signing choice, and signing fingerprint. The owner
+must copy those exact values into the private
+`~/.openclaw/email-approvals/policy.json` entry with fields `id`,
+`intent_sha256`, `recipients`, `sender`, `account`, `signing`, and `signing_key`.
+Resubmit the unchanged message with the same id. The worker removes the approval
+before sending, so it cannot be replayed. Signed sends must name a full 40- or
+64-hex OpenPGP fingerprint with `--pgp-key`; short ids and email selectors are
+rejected.
 
 - Enable per send with `--sign`, or per account with `"pgp_sign": true`.
 - The signing key defaults to the sender address; override with `--pgp-key <id>`
@@ -221,7 +224,8 @@ same JSON (`"signed": true`). Unsigned sends still run locally in the sandbox.
 - `send` reports `"signed": true/false`. Example:
 
 ```bash
-… run_send_email.sh send --account work --to <recipient> --subject Hi --body Hi --sign
+… run_send_email.sh send --to <recipient> --subject Hi --body Hi --sign \
+  --pgp-key <full-fingerprint> --host-approval-id mail-20260805-01
 ```
 
 The passphrase is passed to gpg over a pipe (never on the command line) and is

@@ -3,15 +3,15 @@
 import os
 import tempfile
 import pytest
-from lib.config import load_config
-from lib.webdav import WebDAVClient
+from zotero_test_lib.config import load_config
+from zotero_test_lib.webdav import WebDAVClient
 
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures")
 TEST_KEY = "ZOTTEST0"
 
 
 @pytest.mark.live
-def test_webdav_roundtrip():
+def test_webdav_roundtrip(binary_fixtures_dir):
     config = load_config(require=["WEBDAV_PASSWORD"])
     if not config.get("webdav_url"):
         pytest.skip("WebDAV not configured")
@@ -22,7 +22,7 @@ def test_webdav_roundtrip():
     ok, msg = client.check_connection()
     assert ok, f"WebDAV connection failed: {msg}"
 
-    pdf_path = os.path.join(FIXTURES_DIR, "valid_paper.pdf")
+    pdf_path = binary_fixtures_dir / "valid_paper.pdf"
 
     # Upload
     client.upload(TEST_KEY, pdf_path, "Test_2024_Roundtrip [Journal Article].pdf")

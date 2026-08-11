@@ -1,10 +1,20 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
+fi
 set -euo pipefail
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT
+export PATH=/usr/bin:/bin
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON="${PYTHON:-$(command -v python3 || command -v python)}"
+PYTHON=/usr/bin/python3
+[[ -x "$PYTHON" ]] || { echo "trusted system Python is unavailable" >&2; exit 127; }
 
-exec "$PYTHON" - "$SCRIPT_DIR" "$@" <<'PY'
+exec "$PYTHON" -I -S -B - "$SCRIPT_DIR" "$@" <<'PY'
 import argparse
 import fnmatch
 import json
@@ -17,8 +27,81 @@ import tempfile
 from pathlib import Path
 
 
-SCRIPT_DIR = Path(sys.argv[1]).resolve()
+SCRIPT_DIR = Path(os.path.abspath(sys.argv[1]))
 ARGV = sys.argv[2:]
+
+
+def absolute(path):
+    return Path(os.path.abspath(os.path.expanduser(os.fspath(path))))
+
+
+def open_directory_nofollow(path):
+    path = absolute(path)
+    flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(path.anchor or os.sep, flags | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        for component in path.parts[1:]:
+            next_descriptor = os.open(
+                component,
+                flags | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = next_descriptor
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def read_regular_nofollow(path, maximum=64 * 1024 * 1024):
+    path = absolute(path)
+    parent = open_directory_nofollow(path.parent)
+    descriptor = None
+    try:
+        path_info = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=parent,
+        )
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size > maximum
+            or (path_info.st_dev, path_info.st_ino) != (before.st_dev, before.st_ino)
+        ):
+            raise OSError("sync source is not a bounded single-link regular file")
+        chunks = []
+        remaining = maximum + 1
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+        after = os.fstat(descriptor)
+        if len(payload) > maximum or (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        ):
+            raise OSError("sync source changed while reading")
+        return payload, stat.S_IMODE(before.st_mode)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent)
 
 
 def parse_args():
@@ -39,22 +122,25 @@ def parse_args():
 
 
 ARGS = parse_args()
-PREFIX = Path(ARGS.prefix).expanduser().resolve()
-HOME = Path.home().resolve()
-REPO = Path(ARGS.repo).expanduser().resolve()
-MANIFEST = Path(ARGS.manifest).expanduser().resolve() if ARGS.manifest else REPO / "REBUILD-MANIFEST.json"
-if not MANIFEST.exists():
+PREFIX = absolute(ARGS.prefix)
+HOME = absolute(Path.home())
+REPO = absolute(ARGS.repo)
+MANIFEST = absolute(ARGS.manifest) if ARGS.manifest else REPO / "REBUILD-MANIFEST.json"
+for required_root in (PREFIX, HOME, REPO):
+    descriptor = open_directory_nofollow(required_root)
+    os.close(descriptor)
+if not os.path.lexists(MANIFEST):
     raise SystemExit(f"manifest not found: {MANIFEST}")
 
-with MANIFEST.open("r", encoding="utf-8") as f:
-    manifest = json.load(f)
+manifest_bytes, _manifest_mode = read_regular_nofollow(MANIFEST, maximum=4 * 1024 * 1024)
+manifest = json.loads(manifest_bytes.decode("utf-8"))
 
 STAGING_MARKER = ".openclaw-bot-staging"
 
 if ARGS.apply:
     TARGET = REPO
 else:
-    TARGET = Path(ARGS.staging).expanduser().resolve() if ARGS.staging else Path(tempfile.mkdtemp(prefix="openclaw-bot-staging."))
+    TARGET = absolute(ARGS.staging) if ARGS.staging else Path(tempfile.mkdtemp(prefix="openclaw-bot-staging."))
     if TARGET.exists():
         marker = TARGET / STAGING_MARKER
         if ARGS.staging and not marker.exists():
@@ -76,6 +162,7 @@ TEXT_EXTS = {
 }
 
 SENSITIVE_KEY_RE = re.compile(r"(secret|token|password|credential|private|api[_-]?key|auth|cookie|access|refresh|jwt|allow[_-]?from|pairing|chat[_-]?id|audience)", re.I)
+REQUIRED_HOST_SECRET_TEMPLATE_KEYS = {"TELEGRAM_CHAT_ID"}
 # Exact JSON field names whose VALUE is always a credential/identifier, even
 # though the field name does not contain a "sensitive" word (these are the
 # fields that leaked the Google + Z.AI keys: {"key": "...","type":"api_key"}).
@@ -98,10 +185,19 @@ _DENYLIST_PATH = os.environ.get(
     "OPENCLAW_PRIVATE_DENYLIST",
     os.path.join(str(Path.home()), ".config/coding-system/leak-denylist.txt"))
 PRIVATE_LITERALS = []
-if os.path.exists(_DENYLIST_PATH):
-    with open(_DENYLIST_PATH) as _fh:
-        PRIVATE_LITERALS = sorted(
-            (l.strip() for l in _fh if len(l.strip()) >= 4), key=len, reverse=True)
+if os.path.lexists(_DENYLIST_PATH):
+    denylist_payload, _denylist_mode = read_regular_nofollow(
+        _DENYLIST_PATH, maximum=1024 * 1024
+    )
+    PRIVATE_LITERALS = sorted(
+        (
+            line.strip()
+            for line in denylist_payload.decode("utf-8").splitlines()
+            if len(line.strip()) >= 4
+        ),
+        key=len,
+        reverse=True,
+    )
 elif ARGS.apply:
     raise SystemExit(f"private denylist missing; refusing --apply: {_DENYLIST_PATH}")
 else:
@@ -113,12 +209,11 @@ def rel_match(rel, patterns):
     return any(pat == "**/*" or fnmatch.fnmatch(rel, pat) for pat in patterns)
 
 
-def is_probably_text(path):
+def is_probably_text(path, payload=None):
     if path.suffix in TEXT_EXTS:
         return True
     try:
-        with path.open("rb") as f:
-            chunk = f.read(4096)
+        chunk = (payload if payload is not None else read_regular_nofollow(path)[0])[:4096]
         chunk.decode("utf-8")
         return True
     except Exception:
@@ -209,51 +304,109 @@ def sanitize_openclaw_config(data):
     return data
 
 
+def write_target_nofollow(dest, payload, mode):
+    dest = absolute(dest)
+    target = absolute(TARGET)
+    try:
+        relative = dest.relative_to(target)
+    except ValueError as exc:
+        raise SystemExit(f"sync destination escapes target: {dest}") from exc
+    root = open_directory_nofollow(target)
+    descriptor = root
+    try:
+        for component in relative.parts[:-1]:
+            try:
+                os.mkdir(component, 0o755, dir_fd=descriptor)
+            except FileExistsError:
+                pass
+            next_descriptor = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=descriptor,
+            )
+            if descriptor != root:
+                os.close(descriptor)
+            descriptor = next_descriptor
+        try:
+            existing = os.stat(relative.name, dir_fd=descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None and not stat.S_ISREG(existing.st_mode):
+            raise SystemExit(f"refusing unsafe sync destination: {dest}")
+        temporary = f".{relative.name}.sync.{os.getpid()}.{os.urandom(8).hex()}"
+        output = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            mode & ~0o022,
+            dir_fd=descriptor,
+        )
+        try:
+            view = memoryview(payload)
+            while view:
+                written = os.write(output, view)
+                view = view[written:]
+            os.fchmod(output, mode & ~0o022)
+            os.fsync(output)
+        finally:
+            os.close(output)
+        os.replace(temporary, relative.name, src_dir_fd=descriptor, dst_dir_fd=descriptor)
+        os.fsync(descriptor)
+    finally:
+        if descriptor != root:
+            os.close(descriptor)
+        os.close(root)
+
+
 def render_file(src, dest, template):
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    mode = stat.S_IMODE(src.stat().st_mode)
+    raw, mode = read_regular_nofollow(src)
+    text_payload = None
     if template == "secrets-keys":
         try:
-            data = json.loads(src.read_text(encoding="utf-8"))
+            data = json.loads(raw.decode("utf-8"))
             if isinstance(data, dict):
-                rendered = {key: "" for key in sorted(data.keys())}
+                keys = set(data)
             else:
-                rendered = {}
+                keys = set()
         except Exception:
-            rendered = {}
-        dest.write_text(json.dumps(rendered, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            keys = set()
+        keys.update(REQUIRED_HOST_SECRET_TEMPLATE_KEYS)
+        rendered = {key: "" for key in sorted(keys)}
+        text_payload = json.dumps(rendered, indent=2, sort_keys=True) + "\n"
     elif template == "openclaw-json-sanitize" and src.suffix == ".json":
-        data = json.loads(src.read_text(encoding="utf-8"))
+        data = json.loads(raw.decode("utf-8"))
         data = sanitize_openclaw_config(data)
-        dest.write_text(json.dumps(redact_json_obj(data), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        text_payload = json.dumps(redact_json_obj(data), indent=2, sort_keys=True) + "\n"
     elif template in {"json-redact", "json-or-text-redact"} and src.suffix == ".json":
         try:
-            data = json.loads(src.read_text(encoding="utf-8"))
-            dest.write_text(json.dumps(redact_json_obj(data), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            data = json.loads(raw.decode("utf-8"))
+            text_payload = json.dumps(redact_json_obj(data), indent=2, sort_keys=True) + "\n"
         except Exception:
-            dest.write_text(redact_text(src.read_text(encoding="utf-8", errors="replace")), encoding="utf-8")
-    elif template in {"text-redact", "json-or-text-redact"} and is_probably_text(src):
-        dest.write_text(redact_text(src.read_text(encoding="utf-8", errors="replace")), encoding="utf-8")
-    elif is_probably_text(src):
-        dest.write_text(redact_text(src.read_text(encoding="utf-8", errors="replace")), encoding="utf-8")
+            text_payload = redact_text(raw.decode("utf-8", errors="replace"))
+    elif template in {"text-redact", "json-or-text-redact"} and is_probably_text(src, raw):
+        text_payload = redact_text(raw.decode("utf-8", errors="replace"))
+    elif is_probably_text(src, raw):
+        text_payload = redact_text(raw.decode("utf-8", errors="replace"))
     else:
-        shutil.copy2(src, dest)
-    os.chmod(dest, mode)
+        write_target_nofollow(dest, raw, mode)
+        return
+    write_target_nofollow(dest, text_payload.encode("utf-8"), mode)
 
 
 def iter_tree_files(root, include, exclude):
+    if root.is_symlink() or not root.is_dir():
+        raise SystemExit(f"refusing unsafe allowlisted tree root: {root}")
+    root_descriptor = open_directory_nofollow(root)
+    os.close(root_descriptor)
     include = include or ["**/*"]
     exclude = exclude or []
     for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root).as_posix()
         if path.is_symlink():
-            rel = path.relative_to(root).as_posix()
-            if rel_match(rel, exclude):
+            if rel_match(rel, exclude) or not rel_match(rel, include):
                 continue
-            if rel_match(rel, include):
-                raise SystemExit(f"refusing symlink under allowlisted tree: {root / rel}")
+            raise SystemExit(f"refusing symlink under allowlisted tree: {root / rel}")
         if not path.is_file():
             continue
-        rel = path.relative_to(root).as_posix()
         if rel_match(rel, exclude):
             continue
         if not rel_match(rel, include):
@@ -268,17 +421,35 @@ def copy_control_files():
         "install.sh",
         "backup.sh",
         "restore.sh",
+        "scripts/file_delivery.py",
+        "scripts/queue_boundary.py",
+        "scripts/email_delivery.py",
+        "scripts/harden_runtime_ancestors.py",
+        "scripts/host_exec.py",
+        "scripts/openclaw_host_cli.py",
+        "scripts/owner_archive.py",
+        "scripts/openclaw_auth_closure.py",
+        "scripts/owner_state_lock.py",
+        "scripts/private_tmp.py",
+        "scripts/restore_transaction.py",
+        "scripts/run_host_command.py",
+        "scripts/service_transaction.py",
+        "config/file-delivery-policy.json.template",
+        "config/email-policy.json.template",
         "deploy.sh",
         "test-roundtrip.sh",
         ".gitignore",
     ]:
         src = REPO / name
-        if src.exists():
+        if os.path.lexists(src):
+            information = src.lstat()
+            if not stat.S_ISREG(information.st_mode) or stat.S_ISLNK(information.st_mode):
+                raise SystemExit(f"refusing unsafe control artifact: {src}")
             dest = TARGET / name
-            if src.resolve() == dest.resolve():
+            if absolute(src) == absolute(dest):
                 continue  # --apply writes into the repo itself
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest)
+            payload, mode = read_regular_nofollow(src)
+            write_target_nofollow(dest, payload, mode)
 
 
 def scan_release_artifact():
@@ -287,6 +458,9 @@ def scan_release_artifact():
     findings = []
     skip_names = {"REBUILD-MANIFEST.json"}
     for path in TARGET.rglob("*"):
+        if path.is_symlink():
+            findings.append(f"forbidden symlink in release artifact: {path.relative_to(TARGET)}")
+            continue
         if not path.is_file():
             continue
         rel = path.relative_to(TARGET).as_posix()
@@ -300,9 +474,14 @@ def scan_release_artifact():
         if parts & (generated_path_parts | forbidden_path_parts):
             findings.append(f"forbidden generated path: {rel}")
             continue
-        if not is_probably_text(path):
+        try:
+            payload, _mode = read_regular_nofollow(path)
+        except OSError as exc:
+            findings.append(f"unsafe release artifact file: {rel}")
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
+        if not is_probably_text(path, payload):
+            continue
+        text = payload.decode("utf-8", errors="replace")
         for needle in forbidden:
             if not needle:
                 continue
@@ -326,16 +505,35 @@ def main():
         base = BASES.get(entry.get("base", "openclaw"))
         if base is None:
             raise SystemExit(f"unknown base in manifest entry: {entry}")
-        src = (base / entry["source"]).resolve()
-        dest = TARGET / entry["dest"]
+        source_value = entry.get("source")
+        if not isinstance(source_value, str):
+            raise SystemExit(f"manifest source is invalid: {entry}")
+        source_relative = Path(source_value)
+        if source_relative.is_absolute() or ".." in source_relative.parts:
+            raise SystemExit(f"manifest source escapes its declared base: {entry}")
+        src = absolute(base / source_relative)
+        if os.path.commonpath((os.fspath(base), os.fspath(src))) != os.fspath(base):
+            raise SystemExit(f"manifest source escapes its declared base: {entry}")
+        destination_value = entry.get("dest")
+        if not isinstance(destination_value, str):
+            raise SystemExit(f"manifest destination is invalid: {entry}")
+        destination_relative = Path(destination_value)
+        if destination_relative.is_absolute() or ".." in destination_relative.parts:
+            raise SystemExit(f"manifest destination escapes the target: {entry}")
+        dest = TARGET / destination_relative
         optional = bool(entry.get("optional"))
         template = entry.get("template", "text-redact" if cls == "public-template" else "copy")
-        if not src.exists():
+        if not os.path.lexists(src):
             if optional:
                 skipped.append(str(src))
                 continue
             raise SystemExit(f"required source missing: {src}")
+        if src.is_symlink():
+            raise SystemExit(f"refusing symlinked manifest source: {src}")
         if entry.get("mode") == "file":
+            information = src.lstat()
+            if not stat.S_ISREG(information.st_mode):
+                raise SystemExit(f"manifest file source is not regular: {src}")
             render_file(src, dest, template)
             copied.append(dest.relative_to(TARGET).as_posix())
         elif entry.get("mode") == "tree":

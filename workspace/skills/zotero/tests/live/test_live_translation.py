@@ -1,8 +1,8 @@
 """Live integration test — Translation Server metadata fetch."""
 
 import pytest
-from lib.config import load_config
-from lib.metadata import fetch_metadata
+from zotero_test_lib.config import load_config
+from zotero_test_lib.metadata import fetch_metadata
 
 
 @pytest.mark.live

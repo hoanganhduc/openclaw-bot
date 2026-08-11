@@ -1,43 +1,26 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
+fi
 set -euo pipefail
-BASE="{{ OPENCLAW_WORKSPACE }}/skills/rss-news-digest"
-DIGEST_DIR="{{ OPENCLAW_WORKSPACE }}/data/research/rss/digests"
-# SESSION_DIR may be set by the caller; otherwise use the most recent session folder
-SESSION_DIR=${SESSION_DIR:-$(ls -td {{ OPENCLAW_WORKSPACE }}/data/sessions/* 2>/dev/null | head -n1)}
-if [ -z "$SESSION_DIR" ]; then
-  SESSION_DIR="{{ OPENCLAW_WORKSPACE }}/data/sessions/unspecified_session"
-  mkdir -p "$SESSION_DIR"
-fi
-SUMMARY="${SESSION_DIR}/last-summary.md"
-# Resolve Python: prefer skill-local venv, then shared venv, then system python3
-if [[ -x "${BASE}/.venv/bin/python" ]]; then
-  PYTHON="${BASE}/.venv/bin/python"
-elif [[ -x "{{ USER_HOME }}/.venvs/bin/python" ]]; then
-  PYTHON="{{ USER_HOME }}/.venvs/bin/python"
-else
-  PYTHON="python3"
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT
+export PATH=/usr/bin:/bin
+: "${OPENCLAW_LIBEXEC:?OPENCLAW_LIBEXEC is required}"
+: "${OPENCLAW_WORKSPACE:?OPENCLAW_WORKSPACE is required}"
+
+RUNTIME_CREDENTIALS="/run/user/${UID}/credentials"
+if [[ -r "$RUNTIME_CREDENTIALS" ]]; then
+  echo "RSS runner refuses a namespace with visible runtime credentials" >&2
+  exit 1
 fi
 
-# Run the digest for all tags and prioritize ai_research profile
-"${PYTHON}" "${BASE}/rss_news_digest.py" run --all-tags --profile ai_research
+RUNTIME="$OPENCLAW_LIBEXEC/rss-news-digest/rss_news_digest.py"
+PUBLISHER="$OPENCLAW_LIBEXEC/rss-news-digest/rss_summary_publish.py"
 
-# Build a short summary (top 5 lines per tag: title + url if present)
-rm -f "${SUMMARY}" || true
-echo "# RSS Digest Summary - $(date -u +'%Y-%m-%d %H:%M:%S UTC')" > "${SUMMARY}"
-for f in "${DIGEST_DIR}"/rss-*.md; do
-  [ -f "$f" ] || continue
-  tag=$(basename "$f" .md | sed 's/^rss-//')
-  # Skip the aggregate file to avoid double-counting items
-  [[ "$tag" == "all" ]] && continue
-  printf '\n## %s\n' "${tag}" >> "${SUMMARY}"
-  # Extract up to 5 item titles (lines like "## 1. Title") and their links
-  grep -E "^## [0-9]+\." "$f" | sed 's/^## [0-9]*\. /- /' | sed -n '1,5p' >> "${SUMMARY}" || true
-done
-
-# Also copy last summary to timestamped file for history
-ts=$(date -u +"%Y%m%dT%H%M%SZ")
-cp "${SUMMARY}" "${DIGEST_DIR}/summary-${ts}.md" || true
-cp "${SUMMARY}" "${SESSION_DIR}/summary-${ts}.md" || true
-
-# Print path for callers
-echo "WROTE_SUMMARY:${SUMMARY}"
+/usr/bin/python3 -I -B "$RUNTIME" run --all-tags --profile ai_research \
+  --require-existing-feeds --no-write-digest-stubs
+exec /usr/bin/python3 -I -S -B "$PUBLISHER" --workspace "$OPENCLAW_WORKSPACE"

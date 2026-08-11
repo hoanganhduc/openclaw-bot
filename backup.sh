@@ -1,19 +1,39 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
+if [[ "$-" != *p* ]]; then
+  exec /usr/bin/bash -p -- "$0" "$@"
+fi
 set -euo pipefail
+umask 077
+IFS=$' \t\n'
+unset BASH_ENV ENV CDPATH GLOBIGNORE BASH_XTRACEFD PROMPT_COMMAND \
+  PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS \
+  NODE_OPTIONS NODE_PATH LD_LIBRARY_PATH LD_PRELOAD PERL5OPT RUBYOPT \
+  GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM
+export PATH=/usr/bin:/bin
 
 usage() {
   cat <<'EOF'
-Usage: ./backup.sh [--prefix DIR] [--dry-run] [--verify] [--output DIR]\nEnv:   OPENCLAW_BACKUP_PASSPHRASE_FILE=/path (non-interactive gpg batch/loopback)
+Usage: ./backup.sh [--prefix DIR] [--dry-run] [--verify] [--output DIR]
+       [--allow-persistent-plaintext-staging ACKNOWLEDGE_PERSISTENT_OWNER_PLAINTEXT]
+Env:   OPENCLAW_BACKUP_PASSPHRASE_FILE=/path (non-interactive gpg batch/loopback)
 
 Creates an owner-private encrypted archive. This script may include private
 data; it must not be used as public sync input.
 EOF
 }
 
+ORIGINAL_ARGS=("$@")
 PREFIX="${OPENCLAW_HOME:-$HOME/.openclaw}"
 OUTPUT="$PWD/backups"
 DRY_RUN=0
 VERIFY=0
+PERSISTENT_PLAINTEXT_ACK=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OWNER_ARCHIVE_HELPER="$SCRIPT_DIR/scripts/owner_archive.py"
+PRIVATE_TMP_HELPER="$SCRIPT_DIR/scripts/private_tmp.py"
+ACCOUNT_HOME="$(/usr/bin/python3 -I -S -B -c 'import os,pwd; print(pwd.getpwuid(os.geteuid()).pw_dir)')"
+OPENCLAW_CLI="$ACCOUNT_HOME/.npm-global/lib/node_modules/openclaw/openclaw.mjs"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -21,13 +41,15 @@ while [[ $# -gt 0 ]]; do
     --output) OUTPUT="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --verify) VERIFY=1; shift ;;
+    --allow-persistent-plaintext-staging)
+      PERSISTENT_PLAINTEXT_ACK="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-PREFIX="$(python3 -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$PREFIX")"
-OUTPUT="$(python3 -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$OUTPUT")"
+PREFIX="$(/usr/bin/python3 -I -S -B -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$PREFIX")"
+OUTPUT="$(/usr/bin/python3 -I -S -B -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$OUTPUT")"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 ARCHIVE="$OUTPUT/openclaw-private-$STAMP.tar.gz.gpg"
 
@@ -37,32 +59,49 @@ INCLUDE=(
   ".env"
   ".stignore"
   "credentials"
+  "devices"
   "identity"
+  "state"
   "cron"
-  "plugins"
-  "extensions"
-  "hooks"
-  "skills"
-  "workspace/.git"
   "workspace/data"
   "workspace/memory"
   "workspace/reports"
-  "workspace/scripts"
-  "workspace/openclaw-scripts"
-  "workspace/_control"
   "media"
   "agents"
   "memory"
   "logs"
-  "browser"
   "tasks"
   "flows"
-  "workspace-host"
-  "workspace-moltbook"
-  "workspace-review"
-  "workspace-sanitizer"
-  "workspace-moltbook-reviewer"
+  "workspace-host/data"
+  "workspace-host/memory"
+  "workspace-host/reports"
+  "workspace-moltbook/data"
+  "workspace-moltbook/memory"
+  "workspace-moltbook/reports"
+  "workspace-review/data"
+  "workspace-review/memory"
+  "workspace-review/reports"
+  "workspace-sanitizer/data"
+  "workspace-sanitizer/memory"
+  "workspace-sanitizer/reports"
+  "workspace-moltbook-reviewer/data"
+  "workspace-moltbook-reviewer/memory"
+  "workspace-moltbook-reviewer/reports"
 )
+
+LOCK_HELPER="$SCRIPT_DIR/scripts/owner_state_lock.py"
+[[ -f "$LOCK_HELPER" && ! -L "$LOCK_HELPER" ]] || {
+  echo "owner-state lock helper is missing or unsafe" >&2
+  exit 2
+}
+PREFIX_PARENT="$(dirname -- "$PREFIX")"
+PREFIX_NAME="$(basename -- "$PREFIX")"
+LOCK_PATH="$PREFIX_PARENT/.${PREFIX_NAME}.owner-state.lock"
+if [[ "${OPENCLAW_OWNER_STATE_LOCK:-}" != "$LOCK_PATH" ]]; then
+  exec /usr/bin/python3 -I -S -B "$LOCK_HELPER" --lock-path "$LOCK_PATH" -- \
+    "$SCRIPT_DIR/backup.sh" "${ORIGINAL_ARGS[@]}"
+fi
+/usr/bin/python3 -I -S -B "$LOCK_HELPER" --lock-path "$LOCK_PATH" --validate-inherited
 
 existing=()
 for item in "${INCLUDE[@]}"; do
@@ -72,79 +111,183 @@ done
 echo "prefix: $PREFIX"
 echo "items: ${#existing[@]}"
 if [[ "$DRY_RUN" -eq 1 ]]; then
+  [[ -x /usr/bin/node && -f "$OPENCLAW_CLI" && ! -L "$OPENCLAW_CLI" ]] \
+    || { echo "pinned OpenClaw CLI is unavailable; canonical SQLite snapshot is unavailable" >&2; exit 2; }
+  OPENCLAW_STATE_DIR="$PREFIX" OPENCLAW_CONFIG_PATH="$PREFIX/openclaw.json" \
+    /usr/bin/node "$OPENCLAW_CLI" backup create \
+      --no-include-workspace --dry-run --json >/dev/null
   printf '%s\n' "${existing[@]}"
   exit 0
 fi
 
-mkdir -p "$OUTPUT"
-if ! command -v gpg >/dev/null 2>&1; then
-  echo "gpg not found; refusing to write unencrypted private backup" >&2
+/usr/bin/python3 -I -S -B - "$OUTPUT" <<'PY'
+import os, stat, sys
+path = os.path.abspath(os.path.expanduser(sys.argv[1]))
+descriptor = os.open(os.sep, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
+try:
+    for component in path.split(os.sep)[1:]:
+        if not component:
+            continue
+        try:
+            next_descriptor = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=descriptor,
+            )
+        except FileNotFoundError:
+            os.mkdir(component, 0o700, dir_fd=descriptor)
+            next_descriptor = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=descriptor,
+            )
+        os.close(descriptor)
+        descriptor = next_descriptor
+    information = os.fstat(descriptor)
+    if information.st_uid != os.geteuid():
+        raise SystemExit("backup output directory has the wrong owner")
+    os.fchmod(descriptor, 0o700)
+finally:
+    os.close(descriptor)
+PY
+if [[ ! -x /usr/bin/gpg || -L /usr/bin/gpg ]]; then
+  echo "trusted /usr/bin/gpg is unavailable; refusing private backup" >&2
   exit 1
 fi
-
-# Non-interactive mode: OPENCLAW_BACKUP_PASSPHRASE_FILE points at a passphrase
-# file (chmod 600); gpg then runs batch/loopback so cron can drive this script.
-# Without it, gpg prompts interactively as before.
-GPG_PASS_OPTS=()
-if [[ -n "${OPENCLAW_BACKUP_PASSPHRASE_FILE:-}" ]]; then
-  [[ -r "$OPENCLAW_BACKUP_PASSPHRASE_FILE" ]] || { echo "passphrase file not readable: $OPENCLAW_BACKUP_PASSPHRASE_FILE" >&2; exit 2; }
-  GPG_PASS_OPTS=(--batch --pinentry-mode loopback --passphrase-file "$OPENCLAW_BACKUP_PASSPHRASE_FILE")
+if [[ ! -x /usr/bin/node || ! -f "$OPENCLAW_CLI" || -L "$OPENCLAW_CLI" ]]; then
+  echo "pinned OpenClaw CLI is unavailable; refusing a direct live SQLite copy" >&2
+  exit 2
 fi
+[[ -f "$OWNER_ARCHIVE_HELPER" && ! -L "$OWNER_ARCHIVE_HELPER" ]] \
+  || { echo "owner archive helper is missing or unsafe" >&2; exit 2; }
+[[ -f "$PRIVATE_TMP_HELPER" && ! -L "$PRIVATE_TMP_HELPER" ]] \
+  || { echo "private plaintext staging helper is missing or unsafe" >&2; exit 2; }
 
-# Owner archives are deliberately link-free. Runtime-generated absolute links
-# and dependency-tree links are reconstructed by the installer, while regular
-# files are stored independently even when they share an inode.
-(
-  cd "$PREFIX"
-  for item in "${existing[@]}"; do
-    find -P "$item" \( -type d -o -type f \) -print0
-  done
-) | tar -C "$PREFIX" --null --verbatim-files-from --no-recursion \
-      --hard-dereference -czf - -T - \
-    | gpg "${GPG_PASS_OPTS[@]}" --symmetric --cipher-algo AES256 -o "$ARCHIVE"
-chmod 600 "$ARCHIVE"
-echo "wrote encrypted archive: $ARCHIVE"
+EXPECTED_VERSION="$(/usr/bin/python3 -I -S -B - "$SCRIPT_DIR/REBUILD-MANIFEST.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    print(json.load(stream)["openclaw"]["observed_version"])
+PY
+)"
+
+# Backup is intentionally non-mutating. Existing canonical databases are
+# snapshotted as-is; legacy JSON/model authority remains authenticated but inert
+# and is materialized only by an explicit migration or inside verified restore
+# staging after authority activation has been authorized.
+# OpenClaw owns locking for canonical *.sqlite state. The helper combines those
+# snapshots with its inert data allowlist, snapshots persistent *.db/*.sqlite3
+# through SQLite's backup API, and rejects sidecars or unsupported SQLite names.
+tmp_args=(create)
+[[ -z "$PERSISTENT_PLAINTEXT_ACK" ]] \
+  || tmp_args+=(--allow-persistent "$PERSISTENT_PLAINTEXT_ACK")
+TMP_DIR="$(/usr/bin/python3 -I -S -B "$PRIVATE_TMP_HELPER" "${tmp_args[@]}")"
+PUBLISH_DIR="$(mktemp -d "$OUTPUT/.openclaw-owner-publish.XXXXXX")"
+export TMPDIR="$TMP_DIR"
+export OPENCLAW_OWNER_PLAINTEXT_TMPDIR="$TMP_DIR"
+export OPENCLAW_OWNER_PERSISTENT_PLAINTEXT_ACK="$PERSISTENT_PLAINTEXT_ACK"
+cleanup() {
+  local original_status=$?
+  local cleanup_failed=0
+  trap - EXIT
+  rm -rf -- "$PUBLISH_DIR" || cleanup_failed=1
+  remove_args=(remove --path "$TMP_DIR")
+  [[ -z "$PERSISTENT_PLAINTEXT_ACK" ]] \
+    || remove_args+=(--allow-persistent "$PERSISTENT_PLAINTEXT_ACK")
+  if ! /usr/bin/python3 -I -S -B "$PRIVATE_TMP_HELPER" "${remove_args[@]}" \
+      >/dev/null; then
+    echo "owner backup plaintext staging cleanup failed" >&2
+    cleanup_failed=1
+  fi
+  if [[ "$original_status" -ne 0 ]]; then
+    exit "$original_status"
+  fi
+  [[ "$cleanup_failed" -eq 0 ]] || exit 70
+}
+trap cleanup EXIT
+NATIVE_ARCHIVE="$TMP_DIR/openclaw-native.tar.gz"
+OWNER_TAR="$TMP_DIR/owner.tar.gz"
+ENCRYPTED_TMP="$PUBLISH_DIR/archive.gpg"
+OPENCLAW_STATE_DIR="$PREFIX" OPENCLAW_CONFIG_PATH="$PREFIX/openclaw.json" \
+  /usr/bin/node "$OPENCLAW_CLI" backup create --no-include-workspace --verify \
+    --output "$NATIVE_ARCHIVE" >/dev/null
+/usr/bin/python3 -I -S -B "$OWNER_ARCHIVE_HELPER" build \
+  --native-archive "$NATIVE_ARCHIVE" --state-dir "$PREFIX" --output "$OWNER_TAR"
+/usr/bin/python3 -I -S -B "$OWNER_ARCHIVE_HELPER" verify \
+  --archive "$OWNER_TAR" --expected-runtime-version "$EXPECTED_VERSION" >/dev/null
+crypt_args=(encrypt --source "$OWNER_TAR" --output "$ENCRYPTED_TMP")
+if [[ -n "${OPENCLAW_BACKUP_PASSPHRASE_FILE:-}" ]]; then
+  PASS_FILE="$(/usr/bin/python3 -I -S -B -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$OPENCLAW_BACKUP_PASSPHRASE_FILE")"
+  crypt_args+=(--passphrase-file "$PASS_FILE")
+fi
+/usr/bin/python3 -I -S -B "$OWNER_ARCHIVE_HELPER" "${crypt_args[@]}"
+chmod 600 "$ENCRYPTED_TMP"
 
 if [[ "$VERIFY" -eq 1 ]]; then
-  VERIFY_TMP="$(mktemp "${TMPDIR:-/tmp}/openclaw-backup-verify.XXXXXX.tar.gz")"
-  trap 'rm -f -- "$VERIFY_TMP"' EXIT
-  chmod 600 "$VERIFY_TMP"
-  gpg "${GPG_PASS_OPTS[@]}" --decrypt "$ARCHIVE" > "$VERIFY_TMP" 2>/dev/null
-  python3 - "$VERIFY_TMP" <<'PY'
-import sys
-import tarfile
-from pathlib import PurePosixPath
-
-allowed = {
-    "openclaw.json", "secrets.json", ".env", ".stignore", "credentials",
-    "identity", "cron", "plugins", "extensions", "hooks", "skills",
-    "workspace", "media", "agents", "memory", "logs", "browser", "tasks",
-    "flows", "workspace-host", "workspace-moltbook", "workspace-review",
-    "workspace-sanitizer", "workspace-moltbook-reviewer",
-}
-count = 0
-size = 0
-with tarfile.open(sys.argv[1], "r:gz") as archive:
-    for member in archive:
-        count += 1
-        path = PurePosixPath(member.name)
-        if (
-            count > 1_000_000
-            or not member.name
-            or path.is_absolute()
-            or ".." in path.parts
-            or path.parts[0] not in allowed
-            or member.islnk()
-            or member.issym()
-            or not (member.isfile() or member.isdir())
-        ):
-            raise SystemExit(f"unsafe owner archive member: {member.name!r}")
-        if member.isfile():
-            size += member.size
-            if size > 20 * 1024 * 1024 * 1024:
-                raise SystemExit("owner archive expands beyond 20 GiB")
-PY
-  rm -f -- "$VERIFY_TMP"
-  trap - EXIT
+  VERIFY_TMP="$TMP_DIR/verify.tar.gz"
+  decrypt_args=(decrypt --source "$ENCRYPTED_TMP" --output "$VERIFY_TMP")
+  if [[ -n "${OPENCLAW_BACKUP_PASSPHRASE_FILE:-}" ]]; then
+    decrypt_args+=(--passphrase-file "$PASS_FILE")
+  fi
+  /usr/bin/python3 -I -S -B "$OWNER_ARCHIVE_HELPER" "${decrypt_args[@]}"
+  /usr/bin/python3 -I -S -B "$OWNER_ARCHIVE_HELPER" verify \
+    --archive "$VERIFY_TMP" --expected-runtime-version "$EXPECTED_VERSION" >/dev/null
   echo "verify: ok"
 fi
+
+# Publish only a complete encrypted artifact, without overwriting a backup that
+# another same-second invocation may already have committed.
+/usr/bin/python3 -I -S -B - "$ENCRYPTED_TMP" "$ARCHIVE" <<'PY'
+import os, stat, sys
+source, destination = sys.argv[1:]
+
+def open_directory(path):
+    absolute = os.path.abspath(path)
+    parts = absolute.split(os.sep)
+    descriptor = os.open(os.sep, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        for component in parts[1:]:
+            if not component:
+                continue
+            next_descriptor = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = next_descriptor
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+source_parent = open_directory(os.path.dirname(source))
+destination_parent = open_directory(os.path.dirname(destination))
+descriptor = os.open(
+    os.path.basename(source),
+    os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+    dir_fd=source_parent,
+)
+try:
+    information = os.fstat(descriptor)
+    if not stat.S_ISREG(information.st_mode) or information.st_nlink != 1:
+        raise SystemExit("refusing to publish an unsafe owner backup")
+    os.fsync(descriptor)
+finally:
+    os.close(descriptor)
+try:
+    os.link(
+        os.path.basename(source),
+        os.path.basename(destination),
+        src_dir_fd=source_parent,
+        dst_dir_fd=destination_parent,
+        follow_symlinks=False,
+    )
+except FileExistsError as exc:
+    raise SystemExit("refusing to overwrite an existing owner backup") from exc
+try:
+    os.fsync(destination_parent)
+finally:
+    os.close(source_parent)
+    os.close(destination_parent)
+PY
+echo "wrote encrypted archive: $ARCHIVE"

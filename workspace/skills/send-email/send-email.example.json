@@ -1,8 +1,8 @@
 {
   "_README": [
     "Sample configuration for the send-email skill.",
-    "Copy the keys below into your runtime secrets file -- the path in AAS_SECRETS_FILE,",
-    "normally <runtime_root>/workspace/.secrets.json -- and replace every <placeholder>.",
+    "Copy the keys below into the private file selected by SEND_EMAIL_SECRETS_FILE,",
+    "normally /workspace/.config/send-email/secrets.json in OpenClaw, and replace every <placeholder>.",
     "Use the single 'smtp' block for one account, OR the 'accounts' map for several",
     "(select at send time with --account NAME). If both are present, an account wins:",
     "resolution is --account / SMTP_ACCOUNT > default_account > the 'smtp' block.",
