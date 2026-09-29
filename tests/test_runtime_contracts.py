@@ -150,7 +150,16 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn('-v "$JOB_QUEUE:/workspace/data/job-queue"', source)
         self.assertNotIn('-v "$WORKSPACE:/workspace"', source)
         self.assertNotIn("/opt/openclaw-jobs", source)
-        self.assertIn('chmod 1777 "$JOB_QUEUE"', source)
+        self.assertNotIn("chmod 1777", source)
+        self.assertIn('chmod 700 "$JOB_QUEUE"', source)
+
+    def test_sage_container_runs_as_the_queue_owner(self) -> None:
+        source = (
+            ROOT / "workspace/scripts/job_queue_worker.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('SAGE_RUN_USER="$(/usr/bin/id -u):$(/usr/bin/id -g)"', source)
+        self.assertIn('--user "$SAGE_RUN_USER" --group-add sage', source)
+        self.assertIn('[[ "$user" == "$SAGE_RUN_USER" ]]', source)
 
     def test_sage_container_has_writable_dot_sage(self) -> None:
         source = (

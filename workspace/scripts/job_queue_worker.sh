@@ -84,10 +84,14 @@ SAGE_LOG="$SAGE_OUTPUT/run-log.jsonl"
 # arm64 (this system) uses the prebuilt image; amd64 uses the official SageMath image.
 case "$(/usr/bin/uname -m)" in aarch64|arm64) SAGE_IMAGE="ghcr.io/hoanganhduc/sagemath:10.8" ;; *) SAGE_IMAGE="sagemath/sagemath:10.8" ;; esac
 SAGE_CONTAINER="sagemath-worker"
+# Sage runs as the queue owner so the job queue can stay owner-private, which
+# the reviewed service installer requires of every worker bind source. The
+# image's sage group keeps the Sage installation under /home/sage reachable.
+SAGE_RUN_USER="$(/usr/bin/id -u):$(/usr/bin/id -g)"
 SAGE_SPOOL="$TMPDIR/sage-inputs"
-# The spool stays owner-private, so the image's sage user cannot read it, and
-# sage-preparse writes <input>.py next to its input. Each snapshot is therefore
-# streamed on stdin into a private directory on the container's /tmp and run there.
+# The spool is not mounted into the container, and sage-preparse writes
+# <input>.py next to its input. Each snapshot is therefore streamed on stdin
+# into a private directory on the container's /tmp and run there.
 SAGE_STDIN_RUNNER='d=$(mktemp -d /tmp/openclaw-sage.XXXXXXXXXX) || exit 70; cat > "$d/$1" || { rm -rf -- "$d"; exit 70; }; sage "$d/$1"; rc=$?; rm -rf -- "$d"; exit "$rc"'
 OUTPUT_MAX_BYTES=1048576  # 1MB
 
@@ -312,26 +316,29 @@ process_send_job() {
 # --- SageMath execution ---
 
 sage_container_is_current() {
-  local mounts environment
+  local mounts environment user
   mounts="$(docker inspect -f '{{range .Mounts}}{{println .Source "|" .Destination "|" .RW}}{{end}}' \
     "$SAGE_CONTAINER" 2>/dev/null)" || return 1
   environment="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' \
     "$SAGE_CONTAINER" 2>/dev/null)" || return 1
-  grep -Fqx "$JOB_QUEUE | /workspace/data/job-queue | true" <<<"$mounts" \
+  user="$(docker inspect -f '{{.Config.User}}' "$SAGE_CONTAINER" 2>/dev/null)" || return 1
+  [[ "$user" == "$SAGE_RUN_USER" ]] \
+    && grep -Fqx "$JOB_QUEUE | /workspace/data/job-queue | true" <<<"$mounts" \
     && grep -Fqx "DOT_SAGE=/tmp/.sage" <<<"$environment"
 }
 
 ensure_sage_container() {
-  chmod 1777 "$JOB_QUEUE"
+  chmod 700 "$JOB_QUEUE"
   if docker inspect "$SAGE_CONTAINER" >/dev/null 2>&1 \
       && ! sage_container_is_current; then
-    log "SAGE recreating container with current mounts and DOT_SAGE"
+    log "SAGE recreating container with current user, mounts and DOT_SAGE"
     docker rm -f "$SAGE_CONTAINER" >/dev/null 2>&1
   fi
   if ! docker inspect "$SAGE_CONTAINER" >/dev/null 2>&1; then
     log "SAGE starting persistent container"
     # The root filesystem is read-only; Sage needs a writable DOT_SAGE at startup.
     docker run -d --name "$SAGE_CONTAINER" --restart=unless-stopped \
+      --user "$SAGE_RUN_USER" --group-add sage \
       --cpus=3 --memory=16g --memory-swap=16g --pids-limit=512 \
       --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
       --tmpfs /tmp:rw,nosuid,nodev,noexec,size=2g -e SAGE_NUM_THREADS=3 \
