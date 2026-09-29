@@ -99,6 +99,13 @@ class WorkerIsolationTests(unittest.TestCase):
         for channel in DELIVERY_CHANNELS:
             text = texts[channel]
             self.assertNotIn("InaccessiblePaths={{ OPENCLAW_WORKSPACE }}", text)
+            for mount in (
+                "{{ USER_HOME }}",
+                "{{ USER_HOME }}/.local",
+                "{{ USER_HOME }}/.local/state",
+                "{{ USER_HOME }}/.local/state/openclaw-bot",
+            ):
+                self.assertIn(f"TemporaryFileSystem={mount}:mode=0700", text)
             self.assertIn(
                 f"Environment=OPENCLAW_DELIVERY_CHANNEL={channel}", text
             )

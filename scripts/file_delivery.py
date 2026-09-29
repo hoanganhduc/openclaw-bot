@@ -56,8 +56,26 @@ def _absolute(path: Path) -> Path:
     return Path(os.path.abspath(path.expanduser()))
 
 
+def _ancestor_is_controlled(
+    path: Path, information: os.stat_result, *, account_home: Path
+) -> bool:
+    euid = os.geteuid()
+    mode = stat.S_IMODE(information.st_mode)
+    if path == Path(path.anchor):
+        # In an unprivileged systemd user mount namespace, `/` can be owned by
+        # the overflow uid. A non-writable root remains a safe anchor.
+        return mode & 0o022 == 0
+    if path == account_home.parent and information.st_uid in {0, euid}:
+        # ProtectHome=tmpfs creates a private sticky `/home` parent inside the
+        # service namespace. Normal root-owned system homes remain acceptable
+        # when they are not writable by group/other.
+        return mode == 0o1777 or mode & 0o022 == 0
+    return information.st_uid in {0, euid} and mode & 0o022 == 0
+
+
 def _open_directory(path: Path) -> int:
     absolute = _absolute(path)
+    account_home = _absolute(Path(pwd.getpwuid(os.geteuid()).pw_dir))
     flags = (
         os.O_RDONLY
         | os.O_DIRECTORY
@@ -65,11 +83,11 @@ def _open_directory(path: Path) -> int:
         | getattr(os, "O_CLOEXEC", 0)
     )
     descriptor = os.open(absolute.anchor or os.sep, flags)
+    current = Path(absolute.anchor)
     try:
         root_information = os.fstat(descriptor)
-        if (
-            root_information.st_uid not in {0, os.geteuid()}
-            or stat.S_IMODE(root_information.st_mode) & 0o022
+        if not _ancestor_is_controlled(
+            current, root_information, account_home=account_home
         ):
             raise DeliveryError("host delivery directory is not owner-private")
         for component in absolute.parts[1:]:
@@ -99,9 +117,8 @@ def _ensure_private_directory(path: Path) -> int:
     current = Path(absolute.anchor)
     try:
         root_information = os.fstat(descriptor)
-        if (
-            root_information.st_uid not in {0, os.geteuid()}
-            or stat.S_IMODE(root_information.st_mode) & 0o022
+        if not _ancestor_is_controlled(
+            current, root_information, account_home=account_home
         ):
             raise DeliveryError("host delivery directory is not owner-private")
         for component in absolute.parts[1:]:
@@ -124,9 +141,8 @@ def _ensure_private_directory(path: Path) -> int:
                     or stat.S_IMODE(information.st_mode) & 0o077
                 )
             else:
-                unsafe = (
-                    information.st_uid not in {0, os.geteuid()}
-                    or stat.S_IMODE(information.st_mode) & 0o022
+                unsafe = not _ancestor_is_controlled(
+                    current, information, account_home=account_home
                 )
             if unsafe:
                 raise DeliveryError("host delivery directory is not owner-private")
@@ -631,10 +647,20 @@ def _curl_config_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _telegram_chat_id(target: str) -> str:
+    if target.startswith("telegram:"):
+        value = target[len("telegram:") :]
+        if not value:
+            raise DeliveryError("Telegram delivery target is invalid")
+        return value
+    return target
+
+
 def _send_telegram(
     *, credential_path: Path, target: str, caption: str, snapshot: HostSnapshot
 ) -> None:
     token = _telegram_token(credential_path)
+    chat_id = _telegram_chat_id(target)
     url = f"https://api.telegram.org/bot{token}/sendDocument"
     arguments = [
         "/usr/bin/curl",
@@ -646,7 +672,7 @@ def _send_telegram(
         "--request",
         "POST",
         "--form-string",
-        f"chat_id={target}",
+        f"chat_id={chat_id}",
         "--form",
         f"document=@/proc/self/fd/{snapshot.descriptor};filename={snapshot.display_name}",
         "--max-time",

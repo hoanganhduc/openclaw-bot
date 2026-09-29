@@ -32,6 +32,10 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
+TemporaryFileSystem={{ USER_HOME }}:mode=0700
+TemporaryFileSystem={{ USER_HOME }}/.local:mode=0700
+TemporaryFileSystem={{ USER_HOME }}/.local/state:mode=0700
+TemporaryFileSystem={{ USER_HOME }}/.local/state/openclaw-bot:mode=0700
 RestrictSUIDSGID=true
 RestrictRealtime=true
 RestrictNamespaces=true

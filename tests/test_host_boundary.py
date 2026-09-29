@@ -263,6 +263,46 @@ class FileDeliveryBoundaryTests(unittest.TestCase):
                         symlink_home / ".local/state/openclaw-bot/delivery-spool"
                     )
 
+    def test_delivery_accepts_only_expected_tmpfs_home_ancestors(self) -> None:
+        home = Path("/home/ubuntu")
+        euid = 1001
+        directory = stat.S_IFDIR
+        self.assertTrue(
+            self.delivery._ancestor_is_controlled(
+                Path("/"),
+                SimpleNamespace(st_uid=65534, st_mode=directory | 0o755),
+                account_home=home,
+            )
+        )
+        self.assertTrue(
+            self.delivery._ancestor_is_controlled(
+                Path("/home"),
+                SimpleNamespace(st_uid=euid, st_mode=directory | 0o1777),
+                account_home=home,
+            )
+        )
+        self.assertTrue(
+            self.delivery._ancestor_is_controlled(
+                Path("/home"),
+                SimpleNamespace(st_uid=0, st_mode=directory | 0o755),
+                account_home=home,
+            )
+        )
+        self.assertFalse(
+            self.delivery._ancestor_is_controlled(
+                Path("/home"),
+                SimpleNamespace(st_uid=euid, st_mode=directory | 0o0777),
+                account_home=home,
+            )
+        )
+        self.assertFalse(
+            self.delivery._ancestor_is_controlled(
+                home,
+                SimpleNamespace(st_uid=euid, st_mode=directory | 0o0770),
+                account_home=home,
+            )
+        )
+
     def test_telegram_uses_form_string_for_untrusted_text(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             payload = Path(temporary) / "payload"
@@ -308,6 +348,40 @@ class FileDeliveryBoundaryTests(unittest.TestCase):
                     "caption=@caption-file;type=text/plain",
                 ],
             )
+
+    def test_telegram_prefixed_target_is_stripped_for_bot_api(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            payload = Path(temporary) / "payload"
+            payload.write_bytes(b"document")
+            payload.chmod(0o600)
+            descriptor = os.open(payload, os.O_RDONLY)
+            snapshot = SimpleNamespace(
+                descriptor=descriptor,
+                display_name="document.pdf",
+            )
+            completed = SimpleNamespace(returncode=0, stdout='{"ok":true}', stderr="")
+            try:
+                with mock.patch.object(
+                    self.delivery, "_telegram_token", return_value="token-canary"
+                ), mock.patch.object(
+                    self.delivery.subprocess, "run", return_value=completed
+                ) as runner:
+                    self.delivery._send_telegram(
+                        credential_path=Path(temporary) / "telegram-token",
+                        target="telegram:123456",
+                        caption="caption",
+                        snapshot=snapshot,
+                    )
+            finally:
+                os.close(descriptor)
+            arguments = runner.call_args.args[0]
+            form_string_values = [
+                arguments[index + 1]
+                for index, value in enumerate(arguments[:-1])
+                if value == "--form-string"
+            ]
+            self.assertIn("chat_id=123456", form_string_values)
+            self.assertNotIn("chat_id=telegram:123456", form_string_values)
 
     def test_worker_channel_binding_rejects_cross_channel_queue_jobs(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
