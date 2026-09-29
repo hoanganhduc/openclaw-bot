@@ -85,6 +85,10 @@ SAGE_LOG="$SAGE_OUTPUT/run-log.jsonl"
 case "$(/usr/bin/uname -m)" in aarch64|arm64) SAGE_IMAGE="ghcr.io/hoanganhduc/sagemath:10.8" ;; *) SAGE_IMAGE="sagemath/sagemath:10.8" ;; esac
 SAGE_CONTAINER="sagemath-worker"
 SAGE_SPOOL="$TMPDIR/sage-inputs"
+# The spool stays owner-private, so the image's sage user cannot read it, and
+# sage-preparse writes <input>.py next to its input. Each snapshot is therefore
+# streamed on stdin into a private directory on the container's /tmp and run there.
+SAGE_STDIN_RUNNER='d=$(mktemp -d /tmp/openclaw-sage.XXXXXXXXXX) || exit 70; cat > "$d/$1" || { rm -rf -- "$d"; exit 70; }; sage "$d/$1"; rc=$?; rm -rf -- "$d"; exit "$rc"'
 OUTPUT_MAX_BYTES=1048576  # 1MB
 
 # --- Manim (host-native render via the manim-math-animation venv; SEPARATE queue dir
@@ -307,29 +311,32 @@ process_send_job() {
 
 # --- SageMath execution ---
 
-sage_container_has_required_mounts() {
-  local mounts
+sage_container_is_current() {
+  local mounts environment
   mounts="$(docker inspect -f '{{range .Mounts}}{{println .Source "|" .Destination "|" .RW}}{{end}}' \
     "$SAGE_CONTAINER" 2>/dev/null)" || return 1
+  environment="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' \
+    "$SAGE_CONTAINER" 2>/dev/null)" || return 1
   grep -Fqx "$JOB_QUEUE | /workspace/data/job-queue | true" <<<"$mounts" \
-    && grep -Fqx "$SAGE_SPOOL | /opt/openclaw-jobs | false" <<<"$mounts"
+    && grep -Fqx "DOT_SAGE=/tmp/.sage" <<<"$environment"
 }
 
 ensure_sage_container() {
   chmod 1777 "$JOB_QUEUE"
   if docker inspect "$SAGE_CONTAINER" >/dev/null 2>&1 \
-      && ! sage_container_has_required_mounts; then
-    log "SAGE recreating container with descriptor-snapshot spool"
+      && ! sage_container_is_current; then
+    log "SAGE recreating container with current mounts and DOT_SAGE"
     docker rm -f "$SAGE_CONTAINER" >/dev/null 2>&1
   fi
   if ! docker inspect "$SAGE_CONTAINER" >/dev/null 2>&1; then
     log "SAGE starting persistent container"
+    # The root filesystem is read-only; Sage needs a writable DOT_SAGE at startup.
     docker run -d --name "$SAGE_CONTAINER" --restart=unless-stopped \
       --cpus=3 --memory=16g --memory-swap=16g --pids-limit=512 \
       --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
       --tmpfs /tmp:rw,nosuid,nodev,noexec,size=2g -e SAGE_NUM_THREADS=3 \
+      -e DOT_SAGE=/tmp/.sage \
       -v "$JOB_QUEUE:/workspace/data/job-queue" \
-      -v "$SAGE_SPOOL:/opt/openclaw-jobs:ro" \
       "$SAGE_IMAGE" tail -f /dev/null >/dev/null 2>&1
     sleep 2
   elif [[ "$(docker inspect -f '{{.State.Running}}' "$SAGE_CONTAINER" 2>/dev/null)" != "true" ]]; then
@@ -389,8 +396,9 @@ process_sage_job() {
     rm -f "$job_file"
     return
   fi
-  container_sage="/opt/openclaw-jobs/$(basename -- "$sage_snapshot")"
-  timeout "$job_timeout" docker exec "$SAGE_CONTAINER" sage "$container_sage" > "$tmp_output" 2>&1 &
+  container_sage="$(basename -- "$sage_snapshot")"
+  timeout "$job_timeout" docker exec -i "$SAGE_CONTAINER" /bin/sh -c "$SAGE_STDIN_RUNNER" \
+    openclaw-sage "$container_sage" < "$sage_snapshot" > "$tmp_output" 2>&1 &
 
   local bg_pid=$!
 

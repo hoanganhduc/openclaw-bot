@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 import json
 import os
+import re
 import shutil
 import sqlite3
 import stat
@@ -136,9 +137,10 @@ class RuntimeContractTests(unittest.TestCase):
             'source_path="data/job-queue/${job_id}.sage"', source
         )
         self.assertIn(
-            'container_sage="/opt/openclaw-jobs/$(basename -- "$sage_snapshot")"',
+            'container_sage="$(basename -- "$sage_snapshot")"',
             source,
         )
+        self.assertIn('< "$sage_snapshot"', source)
         self.assertNotIn("PRIVATE_DATA_DIR", source)
 
     def test_sage_container_mounts_only_the_job_queue(self) -> None:
@@ -147,7 +149,50 @@ class RuntimeContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('-v "$JOB_QUEUE:/workspace/data/job-queue"', source)
         self.assertNotIn('-v "$WORKSPACE:/workspace"', source)
+        self.assertNotIn("/opt/openclaw-jobs", source)
         self.assertIn('chmod 1777 "$JOB_QUEUE"', source)
+
+    def test_sage_container_has_writable_dot_sage(self) -> None:
+        source = (
+            ROOT / "workspace/scripts/job_queue_worker.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("-e DOT_SAGE=/tmp/.sage", source)
+        self.assertIn('grep -Fqx "DOT_SAGE=/tmp/.sage"', source)
+
+    def test_sage_stdin_runner_runs_a_private_copy_and_keeps_exit_status(self) -> None:
+        source = (
+            ROOT / "workspace/scripts/job_queue_worker.sh"
+        ).read_text(encoding="utf-8")
+        match = re.search(r"^SAGE_STDIN_RUNNER='([^']+)'$", source, re.MULTILINE)
+        self.assertIsNotNone(match)
+        assert match is not None
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fake_sage = fake_bin / "sage"
+            fake_sage.write_text(
+                "#!/bin/sh\n"
+                'printf "%s" "$1" > "$OUT/argument"\n'
+                'cat "$1" > "$OUT/content"\n'
+                "exit 3\n",
+                encoding="utf-8",
+            )
+            fake_sage.chmod(0o700)
+            result = subprocess.run(
+                ["/bin/sh", "-c", match.group(1), "openclaw-sage", "job-1-abc.sage"],
+                input=b"print(1)\n",
+                env={"PATH": f"{fake_bin}:/usr/bin:/bin", "OUT": str(root)},
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 3, result.stderr)
+            argument = Path((root / "argument").read_text(encoding="utf-8"))
+            self.assertTrue(str(argument.parent).startswith("/tmp/openclaw-sage."))
+            self.assertEqual(argument.name, "job-1-abc.sage")
+            self.assertEqual((root / "content").read_bytes(), b"print(1)\n")
+            self.assertFalse(argument.parent.exists())
 
     def test_shared_queue_worker_is_neutral_runtime_infrastructure(self) -> None:
         worker_source = (ROOT / "workspace/scripts/job_queue_worker.sh").read_text(
