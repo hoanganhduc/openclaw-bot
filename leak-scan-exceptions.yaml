@@ -1,0 +1,16 @@
+# Reviewed leak-scan exceptions for this repository: one path, class and line each,
+# with a reason and the proof that the value is public.  The coding-system-rebuild
+# leak scanner reads this file (layer 4) when it scans this tree with
+# CSR_LEAKSCAN_EXCEPTIONS_REPO pointing here.  A line that moves needs a new review.
+exceptions:
+  - {path: workspace/scripts/job_queue_worker.sh, class: home_path, line: 89, reason: "container path in a comment", proof: "home directory of the sage user inside the public SageMath image"}
+  - {path: workspace/skills/getscipapers_requester/gsp_openclaw_helper.py, class: home_path, line: 77, reason: "legacy path normalization", proof: "home directory named after the owner's public GitHub handle; already public in earlier commits"}
+  - {path: aux-workspaces/workspace-host/AGENTS.md, class: long_numeric_id, line: 168, reason: "example timestamp", proof: "example value from the OpenClaw AGENTS.md template (docs/reference/templates/AGENTS.md)"}
+  - {path: aux-workspaces/workspace-host/AGENTS.md, class: long_numeric_id, line: 169, reason: "example timestamp", proof: "example value from the OpenClaw AGENTS.md template (docs/reference/templates/AGENTS.md)"}
+  - {path: root-skills/getscipapers_requester/gsp_openclaw_helper.py, class: long_numeric_id, line: 67, reason: "size constant", proof: "default Telegram upload limit in bytes"}
+  - {path: workspace/skills/getscipapers_requester/gsp_openclaw_helper.py, class: long_numeric_id, line: 104, reason: "size constant", proof: "default Telegram upload limit in bytes"}
+  - {path: workspace/skills/calibre/SKILL.md, class: long_numeric_id, line: 46, reason: "documentation example", proof: "ISBN-13 example"}
+  - {path: workspace/skills/calibre/SKILL.md, class: long_numeric_id, line: 101, reason: "documentation example", proof: "ISBN-13 example"}
+  - {path: workspace/skills/rss-news-digest/rss_news_digest.py, class: long_numeric_id, line: 31, reason: "public identifier in skill code", proof: "default feed list of public research feeds"}
+  - {path: workspace/skills/self-improving-agent/.clawhub/origin.json, class: long_numeric_id, line: 2, reason: "skill metadata", proof: "millisecond timestamp in public ClawHub skill metadata"}
+  - {path: workspace/skills/self-improving-agent/_meta.json, class: long_numeric_id, line: 3, reason: "skill metadata", proof: "millisecond timestamp in public ClawHub skill metadata"}

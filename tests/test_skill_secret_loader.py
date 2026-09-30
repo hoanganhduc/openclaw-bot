@@ -454,7 +454,7 @@ class SkillSecretLoaderTests(unittest.TestCase):
                     {
                         "smtp": {
                             "host": "broad-selector-canary.invalid",
-                            "password": "broad-password-canary",
+                            "password": "broad-password-canary",  # LEAKSCAN-EXEMPT: synthetic fixture
                         }
                     }
                 ),

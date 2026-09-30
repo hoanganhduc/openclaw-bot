@@ -129,7 +129,18 @@
         "__pycache__/**",
         "*.pyc",
         ".git/**",
-        "config.json"
+        "config.json",
+        "cloudflare/**",
+        "cloudflare-email-service/**",
+        "cloudflare-one/**",
+        "cloudflare-one-migrations/**",
+        "agents-sdk/**",
+        "durable-objects/**",
+        "sandbox-sdk/**",
+        "turnstile-spin/**",
+        "web-perf/**",
+        "workers-best-practices/**",
+        "wrangler/**"
       ],
       "optional": true,
       "reason": "Root OpenClaw skill shims, redacted and portable."

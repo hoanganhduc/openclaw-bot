@@ -359,7 +359,7 @@ class WorkerIsolationTests(unittest.TestCase):
                             "-----END " + "PRIVATE KEY-----\n"
                         ),
                         "client_email": "offline@example.invalid",
-                        "client_id": "100000000000000000000",
+                        "client_id": "100000000000000000000",  # LEAKSCAN-EXEMPT: synthetic fixture
                         "auth_uri": "https://accounts.example.invalid/auth",
                         "token_uri": "https://oauth.example.invalid/token",
                         "auth_provider_x509_cert_url": (
@@ -463,7 +463,7 @@ class WorkerIsolationTests(unittest.TestCase):
                 parent.chmod(0o700)
             remote_canary = remote_bridge / "zulip-control.json"
             remote_canary.write_text(
-                '{"credential":"remote-bridge-must-not-project"}\n',
+                '{"credential":"remote-bridge-must-not-project"}\n',  # LEAKSCAN-EXEMPT: synthetic fixture
                 encoding="utf-8",
             )
             remote_canary.chmod(0o600)

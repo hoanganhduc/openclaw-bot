@@ -168,7 +168,7 @@ REQUIRED_HOST_SECRET_TEMPLATE_KEYS = {"TELEGRAM_CHAT_ID"}
 # fields that leaked the Google + Z.AI keys: {"key": "...","type":"api_key"}).
 SECRET_FIELD_NAMES = {"key", "apikey", "token", "accountid", "ownerid",
                       "clientid", "clientsecret", "bearer", "sessionid",
-                      "serviceaccount", "serviceaccountfile"}
+                      "serviceaccount", "serviceaccountfile", "appprincipal"}
 TAILNET_URL_RE = re.compile(r"https://[a-z0-9-]+\.tail[0-9a-f]+\.ts\.net")
 # Value-shaped secret patterns (redacted regardless of field name):
 GOOGLE_KEY_RE = re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")

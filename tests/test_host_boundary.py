@@ -264,7 +264,7 @@ class FileDeliveryBoundaryTests(unittest.TestCase):
                     )
 
     def test_delivery_accepts_only_expected_tmpfs_home_ancestors(self) -> None:
-        home = Path("/home/ubuntu")
+        home = Path("/home/example-user")
         euid = 1001
         directory = stat.S_IFDIR
         self.assertTrue(
@@ -548,7 +548,7 @@ class InstalledBoundaryContractTests(unittest.TestCase):
 
     def test_launcher_accepts_only_expected_tmpfs_home_ancestors(self) -> None:
         launcher = load_script("host_exec")
-        home = Path("/home/ubuntu")
+        home = Path("/home/example-user")
         euid = 1001
         directory = stat.S_IFDIR
         self.assertTrue(

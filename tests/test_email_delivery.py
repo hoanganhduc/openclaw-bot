@@ -70,7 +70,7 @@ class EmailDeliveryTests(unittest.TestCase):
                         "host": "smtp.example.invalid",
                         "port": 465,
                         "user": "owner@example.invalid",
-                        "password": "smtp-password-canary",
+                        "password": "smtp-password-canary",  # LEAKSCAN-EXEMPT: synthetic fixture
                         "from": "Owner <owner@example.invalid>",
                         "security": "ssl",
                         "cc": ["hidden-cc@example.invalid"],

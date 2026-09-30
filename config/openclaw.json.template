@@ -334,7 +334,7 @@
       "actions": {
         "reactions": true
       },
-      "appPrincipal": "106532770295053600696",
+      "appPrincipal": "{{ REDACTED }}",
       "audience": "{{ REDACTED }}",
       "audienceType": "{{ REDACTED }}",
       "enabled": true,
