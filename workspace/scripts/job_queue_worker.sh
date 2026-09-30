@@ -82,7 +82,7 @@ JOB_QUEUE="$WORKSPACE/data/job-queue"
 SAGE_OUTPUT="$WORKSPACE/data/research/sagemath"
 SAGE_LOG="$SAGE_OUTPUT/run-log.jsonl"
 # arm64 (this system) uses the prebuilt image; amd64 uses the official SageMath image.
-case "$(/usr/bin/uname -m)" in aarch64|arm64) SAGE_IMAGE="ghcr.io/hoanganhduc/sagemath:10.8" ;; *) SAGE_IMAGE="sagemath/sagemath:10.8" ;; esac
+case "$(/usr/bin/uname -m)" in aarch64|arm64) SAGE_IMAGE="ghcr.io/hoanganhduc/sagemath@sha256:6f443fe57534e419c2420d413588e98143429ae9d6cefce7bf026d8d5ff1d793" ;; *) SAGE_IMAGE="sagemath/sagemath@sha256:e2e4747b0e1ea8753a9cb5a399314a8b2c25fcefaf69ba85b22ee075829d09ea" ;; esac
 SAGE_CONTAINER="sagemath-worker"
 # Sage runs as the queue owner so the job queue can stay owner-private, which
 # the reviewed service installer requires of every worker bind source. The
@@ -316,13 +316,15 @@ process_send_job() {
 # --- SageMath execution ---
 
 sage_container_is_current() {
-  local mounts environment user
+  local image mounts environment user
+  image="$(docker inspect -f '{{.Config.Image}}' "$SAGE_CONTAINER" 2>/dev/null)" || return 1
   mounts="$(docker inspect -f '{{range .Mounts}}{{println .Source "|" .Destination "|" .RW}}{{end}}' \
     "$SAGE_CONTAINER" 2>/dev/null)" || return 1
   environment="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' \
     "$SAGE_CONTAINER" 2>/dev/null)" || return 1
   user="$(docker inspect -f '{{.Config.User}}' "$SAGE_CONTAINER" 2>/dev/null)" || return 1
-  [[ "$user" == "$SAGE_RUN_USER" ]] \
+  [[ "$image" == "$SAGE_IMAGE" ]] \
+    && [[ "$user" == "$SAGE_RUN_USER" ]] \
     && grep -Fqx "$JOB_QUEUE | /workspace/data/job-queue | true" <<<"$mounts" \
     && grep -Fqx "DOT_SAGE=/tmp/.sage" <<<"$environment"
 }
@@ -331,7 +333,7 @@ ensure_sage_container() {
   chmod 700 "$JOB_QUEUE"
   if docker inspect "$SAGE_CONTAINER" >/dev/null 2>&1 \
       && ! sage_container_is_current; then
-    log "SAGE recreating container with current user, mounts and DOT_SAGE"
+    log "SAGE recreating container with current image, user, mounts and DOT_SAGE"
     docker rm -f "$SAGE_CONTAINER" >/dev/null 2>&1
   fi
   if ! docker inspect "$SAGE_CONTAINER" >/dev/null 2>&1; then

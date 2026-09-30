@@ -494,7 +494,7 @@ fi
 
 if [[ "$SKIP_DOCKER" -eq 0 ]]; then
   echo "Docker setup is intentionally conservative in this MVP."
-  echo "Expected images: ghcr.io/hoanganhduc/coding-system-rebuild-openclaw-sandbox@sha256:f868c49205a1bad3edfbb6a92e1b184f0ab9f7bfe66d11a939d611f081a1f030 and sagemath/sagemath:10.8 (arm64: ghcr.io/hoanganhduc/sagemath:10.8)"
+  echo "Expected images: ghcr.io/hoanganhduc/coding-system-rebuild-openclaw-sandbox@sha256:f868c49205a1bad3edfbb6a92e1b184f0ab9f7bfe66d11a939d611f081a1f030 and sagemath/sagemath@sha256:e2e4747b0e1ea8753a9cb5a399314a8b2c25fcefaf69ba85b22ee075829d09ea (arm64: ghcr.io/hoanganhduc/sagemath@sha256:6f443fe57534e419c2420d413588e98143429ae9d6cefce7bf026d8d5ff1d793)"
 fi
 
 echo "install complete"
