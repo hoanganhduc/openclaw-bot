@@ -585,5 +585,280 @@ class InstalledBoundaryContractTests(unittest.TestCase):
         )
 
 
+class SealedRuntimeLayoutTests(unittest.TestCase):
+    """A coding-system restore links ~/.npm-global into sealed generations."""
+
+    VERSION = "2026.7.1-2"
+    NODE_GENERATION = "sha256-amd64-" + "1" * 64
+    CLOSURE = "sha256-amd64-" + "2" * 64 + "-" + "3" * 64
+
+    def setUp(self) -> None:
+        self.service = load_script("service_transaction")
+        self.cli = load_script("openclaw_host_cli")
+        temporary = tempfile.TemporaryDirectory(dir=Path.home())
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.addCleanup(self._unseal)
+        self.home = self.root / "account"
+        self.coding = self.home / ".local/share/coding-system"
+        self.node = self.coding / "node-generations" / self.NODE_GENERATION / "bin/node"
+        self.modules = self.coding / "npm-closures" / self.CLOSURE / "node_modules"
+        self.repository = self.root / "repository"
+        self.repository.mkdir(mode=0o700)
+        self.repository.chmod(0o700)
+        manifest = self.repository / "REBUILD-MANIFEST.json"
+        manifest.write_text(
+            json.dumps({"openclaw": {"observed_version": self.VERSION}}),
+            encoding="utf-8",
+        )
+        manifest.chmod(0o644)
+
+    def _unseal(self) -> None:
+        for directory in [self.root, *self.root.rglob("*")]:
+            if directory.is_dir() and not directory.is_symlink():
+                directory.chmod(0o755)
+
+    @staticmethod
+    def _directory(path: Path, mode: int = 0o755) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        path.chmod(mode)
+
+    @staticmethod
+    def _file(path: Path, payload: str, mode: int = 0o444) -> None:
+        path.write_text(payload, encoding="utf-8")
+        path.chmod(mode)
+
+    def _build_sealed(self) -> None:
+        for directory in (
+            self.home,
+            self.home / ".local",
+            self.home / ".local/share",
+            self.coding,
+            self.coding / "node-generations",
+            self.coding / "npm-closures",
+            self.home / ".npm-global",
+            self.home / ".npm-global/bin",
+            self.home / ".npm-global/lib",
+            self.home / ".npm-global/lib/node_modules",
+        ):
+            self._directory(directory)
+        for directory in (
+            self.node.parent,
+            self.modules / "openclaw/dist",
+            self.modules / "dependency",
+        ):
+            self._directory(directory)
+        self._file(self.node, "#!/bin/sh\n", 0o555)
+        self._file(
+            self.modules / "openclaw/package.json",
+            json.dumps({"name": "openclaw", "version": self.VERSION}),
+        )
+        self._file(self.modules / "openclaw/dist/index.js", "export {};\n")
+        self._file(self.modules / "dependency/index.js", "module.exports = 1;\n")
+        (self.home / ".npm-global/bin/node").symlink_to(self.node)
+        (self.home / ".npm-global/lib/node_modules/openclaw").symlink_to(
+            self.modules / "openclaw"
+        )
+        # The builder seals every generation as read-only directories.
+        for generation in (self.node.parents[1], self.modules.parent):
+            for directory in sorted(
+                (path for path in [generation, *generation.rglob("*")] if path.is_dir()),
+                reverse=True,
+            ):
+                directory.chmod(0o555)
+
+    def _modes(self) -> dict[str, int]:
+        return {
+            os.fspath(path): stat.S_IMODE(path.lstat().st_mode)
+            for path in self.coding.rglob("*")
+        }
+
+    def test_install_attests_sealed_generations_that_the_host_cli_accepts(self) -> None:
+        self._build_sealed()
+        before = self._modes()
+        runtime = self.service._collect_external_runtime(
+            self.repository, self.home, harden=True
+        )
+        self.assertEqual(before, self._modes())
+        package_root = self.modules / "openclaw"
+        self.assertEqual(runtime["node"]["path"], os.fspath(self.node))
+        self.assertEqual(
+            runtime["entry"]["path"], os.fspath(package_root / "dist/index.js")
+        )
+        self.assertEqual(
+            runtime["package"]["path"], os.fspath(package_root / "package.json")
+        )
+
+        name = "a" * 64
+        generation = self.home / ".local/libexec/openclaw-bot/generations" / name
+        for directory in (
+            self.home / ".local/libexec",
+            self.home / ".local/libexec/openclaw-bot",
+            generation.parent,
+            generation,
+        ):
+            self._directory(directory, 0o700)
+        self._file(
+            generation / "MANIFEST.json",
+            json.dumps(
+                {
+                    "schema": "openclaw.host-runtime/v1",
+                    "generation": name,
+                    "artifacts": [],
+                    "externalRuntime": runtime,
+                }
+            ),
+            0o400,
+        )
+        account = SimpleNamespace(pw_dir=os.fspath(self.home))
+        with mock.patch.object(self.cli.pwd, "getpwuid", return_value=account):
+            node, entry, dist, version = self.cli._attested_runtime(generation)
+        for descriptor in (node, entry, dist):
+            os.close(descriptor)
+        self.assertEqual(version, self.VERSION)
+
+    def test_sealed_links_must_stay_inside_matching_generations(self) -> None:
+        self._build_sealed()
+        link = self.home / ".npm-global/bin/node"
+        other = self.coding / "node-generations" / ("sha256-arm64-" + "1" * 64)
+        self._directory(other / "bin")
+        self._file(other / "bin/node", "#!/bin/sh\n", 0o555)
+        link.unlink()
+        link.symlink_to(other / "bin/node")
+        with self.assertRaisesRegex(
+            self.service.ServiceTransactionError, "leave the sealed"
+        ):
+            self.service._collect_external_runtime(
+                self.repository, self.home, harden=True
+            )
+        link.unlink()
+        link.symlink_to(self.node)
+        outside = self.home / "elsewhere/node_modules/openclaw"
+        self._directory(outside)
+        package_link = self.home / ".npm-global/lib/node_modules/openclaw"
+        package_link.unlink()
+        package_link.symlink_to(outside)
+        with self.assertRaisesRegex(
+            self.service.ServiceTransactionError, "leave the sealed"
+        ):
+            self.service._collect_external_runtime(
+                self.repository, self.home, harden=True
+            )
+
+    def test_sealed_generations_are_verified_and_never_repaired(self) -> None:
+        self._build_sealed()
+        dependency = self.modules / "dependency/index.js"
+        dependency.chmod(0o664)
+        with self.assertRaisesRegex(
+            self.service.ServiceTransactionError, "sealed OpenClaw runtime path is writable"
+        ):
+            self.service._collect_external_runtime(
+                self.repository, self.home, harden=True
+            )
+        self.assertEqual(stat.S_IMODE(dependency.stat().st_mode), 0o664)
+
+    @unittest.skipUnless(Path("/usr/bin/node").is_file(), "system Node is required")
+    def test_legacy_npm_global_tree_is_still_attested_and_repaired(self) -> None:
+        package_root = self.home / ".npm-global/lib/node_modules/openclaw"
+        for directory in (
+            self.home,
+            self.home / ".npm-global",
+            self.home / ".npm-global/lib",
+            self.home / ".npm-global/lib/node_modules",
+            package_root,
+            package_root / "dist",
+        ):
+            self._directory(directory)
+        self._file(
+            package_root / "package.json",
+            json.dumps({"name": "openclaw", "version": self.VERSION}),
+            0o664,
+        )
+        self._file(package_root / "dist/index.js", "export {};\n", 0o644)
+        runtime = self.service._collect_external_runtime(
+            self.repository, self.home, harden=True
+        )
+        self.assertEqual(runtime["node"]["path"], "/usr/bin/node")
+        self.assertEqual(
+            runtime["package"]["path"], os.fspath(package_root / "package.json")
+        )
+        self.assertEqual(
+            stat.S_IMODE((package_root / "package.json").stat().st_mode), 0o644
+        )
+
+    def test_host_cli_accepts_only_the_two_runtime_layouts(self) -> None:
+        home = Path("/home/example-user")
+        coding = "/home/example-user/.local/share/coding-system"
+        closure = f"{coding}/npm-closures/{self.CLOSURE}/node_modules/openclaw"
+        node = f"{coding}/node-generations/{self.NODE_GENERATION}/bin/node"
+
+        def runtime(node_path: str, package_path: str) -> dict[str, object]:
+            return {
+                "version": self.VERSION,
+                "node": {"path": node_path},
+                "entry": {"path": package_path.replace("package.json", "dist/index.js")},
+                "package": {"path": package_path},
+            }
+
+        legacy = self.cli._expected_runtime_paths(
+            runtime(
+                "/usr/bin/node",
+                "/home/example-user/.npm-global/lib/node_modules/openclaw/package.json",
+            ),
+            home,
+        )
+        self.assertEqual(legacy["node"], Path("/usr/bin/node"))
+        self.assertEqual(
+            legacy["entry"],
+            home / ".npm-global/lib/node_modules/openclaw/dist/index.js",
+        )
+        sealed = self.cli._expected_runtime_paths(
+            runtime(node, f"{closure}/package.json"), home
+        )
+        self.assertEqual(sealed["node"], Path(node))
+        self.assertEqual(sealed["entry"], Path(f"{closure}/dist/index.js"))
+        for node_path, package_path in (
+            (node.replace("sha256-amd64", "sha256-arm64"), f"{closure}/package.json"),
+            ("/opt/node/bin/node", f"{closure}/package.json"),
+            (node, "/home/example-user/.npm-global/lib/node_modules/openclaw/package.json"),
+            (node, f"{closure.replace('/node_modules/openclaw', '/node_modules/other')}/package.json"),
+        ):
+            with self.assertRaisesRegex(
+                self.cli.RuntimeError_, "attestation path is invalid"
+            ):
+                self.cli._expected_runtime_paths(runtime(node_path, package_path), home)
+
+    def test_host_cli_accepts_the_delivery_sandbox_ancestors(self) -> None:
+        home = Path("/home/example-user")
+        euid = os.geteuid()
+        directory = stat.S_IFDIR
+        accepted = (
+            (Path("/"), 65534, 0o755),
+            (Path("/home"), euid, 0o1777),
+            (home, euid, 0o700),
+        )
+        rejected = (
+            (Path("/"), 65534, 0o777),
+            (Path("/usr"), 65534, 0o755),
+            (Path("/home"), euid, 0o1775),
+            (Path("/home"), euid, 0o0777),
+            (Path("/home"), 65534, 0o1777),
+            (home / ".local", euid, 0o1777),
+            (home, euid, 0o770),
+        )
+        for path, uid, mode in accepted:
+            information = SimpleNamespace(st_uid=uid, st_mode=directory | mode)
+            self.assertTrue(
+                self.cli._ancestor_is_controlled(path, information, home=home),
+                (path, uid, oct(mode)),
+            )
+        for path, uid, mode in rejected:
+            information = SimpleNamespace(st_uid=uid, st_mode=directory | mode)
+            self.assertFalse(
+                self.cli._ancestor_is_controlled(path, information, home=home),
+                (path, uid, oct(mode)),
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

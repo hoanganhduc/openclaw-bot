@@ -34,6 +34,12 @@ OWNER_ARCHIVE_HELPER="$SCRIPT_DIR/scripts/owner_archive.py"
 PRIVATE_TMP_HELPER="$SCRIPT_DIR/scripts/private_tmp.py"
 ACCOUNT_HOME="$(/usr/bin/python3 -I -S -B -c 'import os,pwd; print(pwd.getpwuid(os.geteuid()).pw_dir)')"
 OPENCLAW_CLI="$ACCOUNT_HOME/.npm-global/lib/node_modules/openclaw/openclaw.mjs"
+OPENCLAW_NODE=/usr/bin/node
+# A coding-system restore links the package into a sealed npm closure and has
+# no system Node; the closure runs on the sealed Node that ~/.npm-global links.
+if [[ -L "$ACCOUNT_HOME/.npm-global/lib/node_modules/openclaw" ]]; then
+  OPENCLAW_NODE="$ACCOUNT_HOME/.npm-global/bin/node"
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -111,10 +117,10 @@ done
 echo "prefix: $PREFIX"
 echo "items: ${#existing[@]}"
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  [[ -x /usr/bin/node && -f "$OPENCLAW_CLI" && ! -L "$OPENCLAW_CLI" ]] \
+  [[ -x "$OPENCLAW_NODE" && -f "$OPENCLAW_CLI" && ! -L "$OPENCLAW_CLI" ]] \
     || { echo "pinned OpenClaw CLI is unavailable; canonical SQLite snapshot is unavailable" >&2; exit 2; }
   OPENCLAW_STATE_DIR="$PREFIX" OPENCLAW_CONFIG_PATH="$PREFIX/openclaw.json" \
-    /usr/bin/node "$OPENCLAW_CLI" backup create \
+    "$OPENCLAW_NODE" "$OPENCLAW_CLI" backup create \
       --no-include-workspace --dry-run --json >/dev/null
   printf '%s\n' "${existing[@]}"
   exit 0
@@ -154,7 +160,7 @@ if [[ ! -x /usr/bin/gpg || -L /usr/bin/gpg ]]; then
   echo "trusted /usr/bin/gpg is unavailable; refusing private backup" >&2
   exit 1
 fi
-if [[ ! -x /usr/bin/node || ! -f "$OPENCLAW_CLI" || -L "$OPENCLAW_CLI" ]]; then
+if [[ ! -x "$OPENCLAW_NODE" || ! -f "$OPENCLAW_CLI" || -L "$OPENCLAW_CLI" ]]; then
   echo "pinned OpenClaw CLI is unavailable; refusing a direct live SQLite copy" >&2
   exit 2
 fi
@@ -208,7 +214,7 @@ NATIVE_ARCHIVE="$TMP_DIR/openclaw-native.tar.gz"
 OWNER_TAR="$TMP_DIR/owner.tar.gz"
 ENCRYPTED_TMP="$PUBLISH_DIR/archive.gpg"
 OPENCLAW_STATE_DIR="$PREFIX" OPENCLAW_CONFIG_PATH="$PREFIX/openclaw.json" \
-  /usr/bin/node "$OPENCLAW_CLI" backup create --no-include-workspace --verify \
+  "$OPENCLAW_NODE" "$OPENCLAW_CLI" backup create --no-include-workspace --verify \
     --output "$NATIVE_ARCHIVE" >/dev/null
 /usr/bin/python3 -I -S -B "$OWNER_ARCHIVE_HELPER" build \
   --native-archive "$NATIVE_ARCHIVE" --state-dir "$PREFIX" --output "$OWNER_TAR"

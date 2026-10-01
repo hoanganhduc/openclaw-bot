@@ -18,6 +18,8 @@ import sys
 MANIFEST_SCHEMA = "openclaw.host-runtime/v1"
 SAFE_PATH = "/usr/bin:/bin"
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+SEALED_NODE_GENERATION = r"sha256-(amd64|arm64)-[0-9a-f]{64}"
+SEALED_NPM_CLOSURE = r"sha256-(amd64|arm64)-[0-9a-f]{64}-[0-9a-f]{64}"
 MAX_ATTESTED_BYTES = 256 * 1024 * 1024
 CHANNELS = frozenset({"zulip", "googlechat", "whatsapp", "zalo"})
 
@@ -102,7 +104,26 @@ def _read_regular(path: Path, *, maximum: int) -> tuple[int, bytes, os.stat_resu
         os.close(parent)
 
 
-def _validate_ancestors(path: Path) -> None:
+def _ancestor_is_controlled(
+    path: Path, information: os.stat_result, *, home: Path
+) -> bool:
+    mode = stat.S_IMODE(information.st_mode)
+    if path == Path(path.anchor):
+        # An unprivileged systemd mount namespace maps the host root owner to
+        # the overflow uid.  A non-writable root is still a safe path anchor.
+        return mode & 0o022 == 0
+    if information.st_uid in {0, os.geteuid()} and mode & 0o022 == 0:
+        return True
+    # ProtectHome=tmpfs creates a private, sticky synthetic home parent owned
+    # by the service uid.  Nothing outside the unit can mutate this namespace.
+    return (
+        path == home.parent
+        and information.st_uid in {0, os.geteuid()}
+        and mode == 0o1777
+    )
+
+
+def _validate_ancestors(path: Path, *, home: Path) -> None:
     absolute = Path(os.path.abspath(path))
     current = Path(absolute.anchor)
     for component in (None, *absolute.parts[1:]):
@@ -111,15 +132,53 @@ def _validate_ancestors(path: Path) -> None:
         descriptor = _open_directory(current)
         try:
             information = os.fstat(descriptor)
-            if (
-                information.st_uid not in {0, os.geteuid()}
-                or stat.S_IMODE(information.st_mode) & 0o022
-            ):
+            if not _ancestor_is_controlled(current, information, home=home):
                 raise RuntimeError_(
                     "OpenClaw runtime ancestor is not owner-controlled"
                 )
         finally:
             os.close(descriptor)
+
+
+def _expected_runtime_paths(
+    runtime: dict[str, object], home: Path
+) -> dict[str, Path]:
+    """The legacy npm-global layout, or one sealed coding-system Node and closure."""
+    node_record = runtime.get("node")
+    package_record = runtime.get("package")
+    node_value = node_record.get("path") if isinstance(node_record, dict) else None
+    package_value = (
+        package_record.get("path") if isinstance(package_record, dict) else None
+    )
+    if node_value == "/usr/bin/node":
+        node = Path("/usr/bin/node")
+        package_root = home / ".npm-global/lib/node_modules/openclaw"
+    else:
+        coding = re.escape(os.fspath(home / ".local/share/coding-system"))
+        node_match = re.fullmatch(
+            coding + "/node-generations/" + SEALED_NODE_GENERATION + "/bin/node",
+            node_value if isinstance(node_value, str) else "",
+        )
+        package_match = re.fullmatch(
+            coding
+            + "/npm-closures/"
+            + SEALED_NPM_CLOSURE
+            + "/node_modules/openclaw/package\\.json",
+            package_value if isinstance(package_value, str) else "",
+        )
+        if (
+            node_match is None
+            or package_match is None
+            or node_match.group(1) != package_match.group(1)
+        ):
+            raise RuntimeError_("OpenClaw runtime attestation path is invalid")
+        node = Path(node_match.group(0))
+        package_root = Path(package_match.group(0)).parent
+    return {
+        "node": node,
+        "entry": package_root / "dist/index.js",
+        "package": package_root / "package.json",
+    }
 
 
 def _manifest(generation: Path) -> dict[str, object]:
@@ -157,16 +216,11 @@ def _attested_runtime(generation: Path) -> tuple[int, int, int, str]:
     }:
         raise RuntimeError_("OpenClaw runtime attestation is missing")
     home = Path(pwd.getpwuid(os.geteuid()).pw_dir)
-    expected_paths = {
-        "node": Path("/usr/bin/node"),
-        "entry": home
-        / ".npm-global/lib/node_modules/openclaw/dist/index.js",
-        "package": home / ".npm-global/lib/node_modules/openclaw/package.json",
-    }
+    expected_paths = _expected_runtime_paths(runtime, home)
     opened: dict[str, tuple[int, bytes]] = {}
     try:
         for label, expected_path in expected_paths.items():
-            _validate_ancestors(expected_path.parent)
+            _validate_ancestors(expected_path.parent, home=home)
             record = runtime.get(label)
             if not isinstance(record, dict) or frozenset(record) != {
                 "path",

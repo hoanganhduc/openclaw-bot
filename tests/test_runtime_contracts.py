@@ -1195,7 +1195,13 @@ class RuntimeContractTests(unittest.TestCase):
             (ROOT / "REBUILD-MANIFEST.json").read_text(encoding="utf-8")
         )
         self.assertIn(
-            '/usr/bin/node "$OPENCLAW_CLI" backup create --no-include-workspace --verify',
+            '"$OPENCLAW_NODE" "$OPENCLAW_CLI" backup create --no-include-workspace --verify',
+            backup,
+        )
+        self.assertIn("OPENCLAW_NODE=/usr/bin/node\n", backup)
+        self.assertIn(
+            'if [[ -L "$ACCOUNT_HOME/.npm-global/lib/node_modules/openclaw" ]]; then\n'
+            '  OPENCLAW_NODE="$ACCOUNT_HOME/.npm-global/bin/node"\n',
             backup,
         )
         self.assertIn("owner_archive.py", backup)

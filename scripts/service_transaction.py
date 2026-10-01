@@ -30,6 +30,10 @@ MAX_WHATSAPP_FILE_BYTES = 2 * 1024 * 1024
 MAX_WHATSAPP_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_PROJECTION_CLEANUP_ENTRIES = 20_000
 HOST_RUNTIME_SCHEMA = "openclaw.host-runtime/v1"
+# A coding-system restore links ~/.npm-global into sealed, read-only Node and
+# npm closure generations instead of a system /usr/bin/node and a mutable tree.
+SEALED_NODE_GENERATION = re.compile(r"sha256-(amd64|arm64)-[0-9a-f]{64}")
+SEALED_NPM_CLOSURE = re.compile(r"sha256-(amd64|arm64)-[0-9a-f]{64}-[0-9a-f]{64}")
 DELIVERY_PROJECTION_SCHEMA = "openclaw.delivery-projection/v1"
 DELIVERY_CHANNELS = ("telegram", "zulip", "googlechat", "whatsapp", "zalo")
 DELIVERY_STATE_CHANNELS = ("zulip", "googlechat", "whatsapp", "zalo")
@@ -1529,7 +1533,7 @@ def _validate_source_chain(repository: Path, directory: Path) -> None:
         os.close(descriptor)
 
 
-def _harden_runtime_path(path: Path) -> None:
+def _harden_runtime_path(path: Path, *, repair: bool = True) -> None:
     information = path.lstat()
     if (
         stat.S_ISLNK(information.st_mode)
@@ -1539,15 +1543,17 @@ def _harden_runtime_path(path: Path) -> None:
         raise ServiceTransactionError("OpenClaw runtime path is not owner-controlled")
     mode = stat.S_IMODE(information.st_mode)
     if mode & 0o022:
+        if not repair:
+            raise ServiceTransactionError("sealed OpenClaw runtime path is writable")
         os.chmod(path, mode & ~0o022, follow_symlinks=False)
 
 
-def _harden_runtime_tree(root: Path) -> None:
+def _harden_runtime_tree(root: Path, *, repair: bool = True) -> None:
     root = absolute(root)
     count = 0
     for directory, directories, files in os.walk(root, topdown=True, followlinks=False):
         base = Path(directory)
-        _harden_runtime_path(base)
+        _harden_runtime_path(base, repair=repair)
         safe_directories: list[str] = []
         for name in sorted(directories):
             child = base / name
@@ -1565,7 +1571,7 @@ def _harden_runtime_tree(root: Path) -> None:
                 raise ServiceTransactionError(
                     "OpenClaw runtime contains a special directory entry"
                 )
-            _harden_runtime_path(child)
+            _harden_runtime_path(child, repair=repair)
             safe_directories.append(name)
         directories[:] = safe_directories
         for name in sorted(files):
@@ -1584,7 +1590,7 @@ def _harden_runtime_tree(root: Path) -> None:
                 raise ServiceTransactionError(
                     "OpenClaw runtime contains an unsafe code file"
                 )
-            _harden_runtime_path(child)
+            _harden_runtime_path(child, repair=repair)
             if count > 100_000:
                 raise ServiceTransactionError("OpenClaw runtime tree is unexpectedly large")
 
@@ -1620,6 +1626,33 @@ def _runtime_record(
     )
 
 
+def _sealed_runtime(home: Path) -> tuple[Path, Path]:
+    """Resolve the npm-global links to one sealed closure and its Node."""
+    coding = home / ".local/share/coding-system"
+    try:
+        package_root = Path(
+            os.path.realpath(home / ".npm-global/lib/node_modules/openclaw", strict=True)
+        )
+        node = Path(os.path.realpath(home / ".npm-global/bin/node", strict=True))
+    except OSError as exc:
+        raise ServiceTransactionError("sealed OpenClaw runtime link is broken") from exc
+    closure = package_root.parent.parent
+    generation = node.parent.parent
+    closure_match = SEALED_NPM_CLOSURE.fullmatch(closure.name)
+    node_match = SEALED_NODE_GENERATION.fullmatch(generation.name)
+    if (
+        closure_match is None
+        or node_match is None
+        or closure_match.group(1) != node_match.group(1)
+        or package_root != coding / "npm-closures" / closure.name / "node_modules/openclaw"
+        or node != coding / "node-generations" / generation.name / "bin/node"
+    ):
+        raise ServiceTransactionError(
+            "OpenClaw runtime links leave the sealed coding-system generations"
+        )
+    return package_root, node
+
+
 def _collect_external_runtime(
     repository: Path, home: Path, *, harden: bool
 ) -> dict[str, object]:
@@ -1639,9 +1672,29 @@ def _collect_external_runtime(
         raise ServiceTransactionError("reviewed OpenClaw version is missing")
 
     package_root = home / ".npm-global/lib/node_modules/openclaw"
+    node = Path("/usr/bin/node")
+    sealed = package_root.is_symlink()
+    if sealed:
+        package_root, node = _sealed_runtime(home)
     entry = package_root / "dist/index.js"
     package = package_root / "package.json"
-    if harden:
+    if harden and sealed:
+        # Sealed generations are verified as they are and never repaired.
+        coding = home / ".local/share/coding-system"
+        for path in (
+            home / ".local",
+            home / ".local/share",
+            coding,
+            coding / "npm-closures",
+            coding / "node-generations",
+            node.parents[1],
+            node.parent,
+        ):
+            _harden_runtime_path(path, repair=False)
+        # npm hoists OpenClaw's dependencies beside it, so the whole closure
+        # is the code OpenClaw loads.
+        _harden_runtime_tree(package_root.parents[1], repair=False)
+    elif harden:
         _harden_runtime_tree(package_root)
         for path in (
             home / ".npm-global",
@@ -1653,9 +1706,7 @@ def _collect_external_runtime(
             package,
         ):
             _harden_runtime_path(path)
-    node_record, _node_payload = _runtime_record(
-        Path("/usr/bin/node"), require_locked=True
-    )
+    node_record, _node_payload = _runtime_record(node, require_locked=True)
     entry_record, _entry_payload = _runtime_record(entry, require_locked=harden)
     package_record, package_payload = _runtime_record(
         package, require_locked=harden

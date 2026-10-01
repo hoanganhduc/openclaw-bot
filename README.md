@@ -171,7 +171,8 @@ profiles and state ordering preserves which credential was active. Unsupported
 sensitive headers or executable SecretRefs fail closed; redaction placeholders
 are never promoted. The conversion is offline, idempotent, prints only counts
 and digests, and normalizes only safe same-tree legacy agent aliases. OpenClaw's
-native `/usr/bin/node ... backup create --verify` then snapshots canonical
+native `backup create --verify` (on `/usr/bin/node`, or on the sealed Node of a
+coding-system restore) then snapshots canonical
 `*.sqlite` state with `VACUUM INTO`. The v5 owner helper snapshots persistent `*.db` and
 `*.sqlite3` files with SQLite's online backup API, rejects sidecars and unknown
 SQLite filename forms, and excludes regenerable cache directories. It then

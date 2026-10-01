@@ -140,6 +140,13 @@ class WorkerIsolationTests(unittest.TestCase):
                 "BindReadOnlyPaths={{ USER_HOME }}/.npm-global/lib/node_modules/openclaw",
                 text,
             )
+            for sealed in ("node-generations", "npm-closures"):
+                self.assertIn(
+                    "BindReadOnlyPaths=-{{ USER_HOME }}/.local/share/coding-system/"
+                    + sealed
+                    + "\n",
+                    text,
+                )
             self.assertNotIn("telegram-token", text)
             for other in DELIVERY_CHANNELS - {"telegram", channel}:
                 self.assertNotIn(f"delivery-authorities/{other}", text)
